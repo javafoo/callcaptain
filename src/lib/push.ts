@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { sendNotification } from "web-push";
-import { client, ensureSchema, type HoldMethod, type JobStatus, type TechStatus } from "./db";
+import { columnExists, client, ensureSchema, type HoldMethod, type JobStatus, type TechStatus } from "./db";
 
 /**
  * Alerts on the owner's phone (Web Push, VAPID keys in VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY /
@@ -49,6 +49,7 @@ let ready: Promise<void> | null = null;
 
 function ensurePush(): Promise<void> {
   ready ??= (async () => {
+    if (await columnExists("push_rate", "last_at")) return; // already set up: no DDL on cold starts
     const sql = client();
     await sql.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
