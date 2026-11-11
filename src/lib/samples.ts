@@ -1,7 +1,7 @@
 import { TIMEZONE, type Business } from "./business";
 import { client, createJob, event, getJob, listJobs, updateJob, type Job } from "./db";
 import { listPayments } from "./ledger";
-import { bookMorning, cancelVisit, completeJob, dispatchTechnician, holdKeypadCard, releaseHold } from "./money";
+import { approveFinalBill, bookMorning, cancelVisit, dispatchTechnician, holdKeypadCard, refundJob, releaseHold, requestApproval } from "./money";
 
 /**
  * "Load a sample night": seven after-hours calls from last night, each run through the real
@@ -27,6 +27,10 @@ type Sample = {
   urgency: "emergency" | "urgent" | "routine";
   outcome: Outcome;
   finalCents?: number;
+  /** What the technician wrote on the bill the customer approved. */
+  work?: string;
+  /** A partial refund the next morning (goodwill), through PayPal's refund API. */
+  refund?: { cents: number; reason: string };
   ticket: { summary: string; problem: string; likely_work: string; safety_steps_taken: string; customer_mood: string; language: string };
 };
 
@@ -59,6 +63,7 @@ const SAMPLES: Sample[] = [
     urgency: "urgent",
     outcome: "completed",
     finalCents: 12000,
+    work: "Cleaned the flame sensor; the furnace lights normally",
     ticket: {
       summary: "No heat; the furnace clicks but won't light. Newborn at home and the house is down to 58°F. Caller spoke Spanish.",
       problem: "No heat",
@@ -96,6 +101,7 @@ const SAMPLES: Sample[] = [
     urgency: "emergency",
     outcome: "balance_due",
     finalCents: 184000,
+    work: "Replaced the 50-gallon gas water heater and hauled away the old tank",
     ticket: {
       summary: "50-gallon gas water heater burst in the garage, about an inch of water on the floor. Caller closed the cold-water valve and turned the gas control to pilot.",
       problem: "Burst water heater",
@@ -151,6 +157,8 @@ const SAMPLES: Sample[] = [
     urgency: "emergency",
     outcome: "completed",
     finalCents: 14900,
+    work: "Snaked the main line from the cleanout and checked it with a camera",
+    refund: { cents: 4000, reason: "Goodwill credit, the line cleared faster than quoted" },
     ticket: {
       summary: "Sewage coming up through the ground-floor shower drain. Told the family to stop running water and keep kids out of the bathroom.",
       problem: "Main line clog",
@@ -179,8 +187,11 @@ const OFFSET_MINUTES: Record<string, number> = {
   captured: 152,
   charged: 152,
   balance_sent: 152,
+  approval_requested: 148,
+  approved: 151,
+  refunded: 610,
 };
-const LEDGER_OFFSET_MINUTES: Record<string, number> = { hold: 4, trip_fee: 31, hold_void: 31 };
+const LEDGER_OFFSET_MINUTES: Record<string, number> = { hold: 4, trip_fee: 31, hold_void: 31, refund: 610 };
 
 /** The most recent past moment when the business's clock read hh:mm. */
 function lastNight(hhmm: string, now = Date.now()): number {
@@ -240,7 +251,12 @@ async function run(workspace: string, b: Business, s: Sample): Promise<void> {
     job = (await holdKeypadCard(job, b, TEST_CARD)).job;
     job = await dispatchTechnician(job, b);
     if (s.outcome === "cancelled_fee") job = (await cancelVisit(job, b)).job;
-    if ((s.outcome === "completed" || s.outcome === "balance_due") && s.finalCents) job = await completeJob(job, b, s.finalCents);
+    if ((s.outcome === "completed" || s.outcome === "balance_due") && s.finalCents) {
+      // The same path as on site: the bill goes to the customer and is approved (here by the sample, not a person).
+      job = await requestApproval(job, s.finalCents, s.work ?? null);
+      job = await approveFinalBill(job, b, s.finalCents, { ip: null, userAgent: "Sample night (no real customer)", via: "link" });
+    }
+    if (s.refund) job = await refundJob(job, b, s.refund.cents, s.refund.reason);
   }
   job = await updateJob(job.id, {}, event("call_ended", "Call ended. AI wrote the technician's ticket."));
   await backdate(job, lastNight(s.at));

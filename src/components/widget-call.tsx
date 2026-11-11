@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@/lib/db";
 import { dollars } from "@/lib/format";
+import { isNotice, techLine } from "./call-demo";
 import { SaveCardOnFile } from "./card-on-file";
 import { KEYPAD_STEPS, SecureKeypad } from "./keypad";
 import { PayPalPay } from "./paypal-hold";
@@ -64,7 +65,8 @@ export function WidgetCall({
     };
   }, [keypadRequested]);
 
-  const transcript = (job?.events ?? []).filter((e) => e.kind === "caller" || e.kind === "agent_said").slice(-6);
+  const transcript = (job?.events ?? []).filter((e) => (e.kind === "caller" && !isNotice(e.text)) || e.kind === "agent_said").slice(-6);
+  const tech = techLine(job);
   useEffect(() => {
     // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would call it as a cleanup.
     bottom.current?.scrollIntoView({ block: "end" });
@@ -141,8 +143,25 @@ export function WidgetCall({
                   <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                   <div className="text-sm">
                     <p className="font-semibold text-brand-700">{card ? "Card saved with PayPal. $0 charged." : `${dollars(job?.fee_cents)} hold placed. $0 charged.`}</p>
-                    {job?.tech_name && <p className="text-gray-600">{job.tech_name} is on the way, arriving in {job.eta}.</p>}
+                    {!tech && job?.tech_name && <p className="text-gray-600">{job.tech_name} is on the way, arriving in {job.eta}.</p>}
                   </div>
+                </div>
+              )}
+              {tech && (
+                <div
+                  className={cx(
+                    "flex items-center gap-3 rounded-2xl p-4 text-sm font-medium ring-1",
+                    tech.tone === "calling" && "bg-amber-50 text-amber-800 ring-amber-200",
+                    tech.tone === "accepted" && "bg-brand-50 text-brand-700 ring-brand-200",
+                    tech.tone === "unavailable" && "bg-rose-50 text-rose-700 ring-rose-200",
+                  )}
+                >
+                  {tech.tone === "calling" ? (
+                    <span className="mx-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+                  ) : (
+                    <Icon name={tech.tone === "accepted" ? "truck" : "phone"} className="h-5 w-5 shrink-0" />
+                  )}
+                  {tech.text}
                 </div>
               )}
               <div ref={bottom} />
