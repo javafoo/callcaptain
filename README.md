@@ -24,13 +24,20 @@ Ava, the AI dispatcher, answers the call and handles every money moment through 
 
 1. **Safety first, then triage.** She walks the caller to the water shutoff, checks for gas or electrical danger, and takes name, address and problem.
 2. **A hold, not a charge.** She explains the $149 after-hours service call and puts a **PayPal button on the caller's screen** mid-call. The caller approves with PayPal, Venmo or a card. It's a PayPal **authorization**: $0 moves.
-3. **Or the keypad, never the AI.** A caller who'd rather not tap a link types a card on the keypad. SignalWire collects the digits outside the AI, and PayPal holds the card. The model never sees a card number.
+3. **Or the keypad, never the AI.** A caller who'd rather not tap a link types a card on the keypad. Ava hands the call to SignalWire's secure `pay` step (her session ends, so nothing is listening), PayPal holds the card, and a fresh Ava picks the call back up knowing the result. The model never sees a card number.
 4. **Live confirmation.** The moment PayPal approves, the server injects a notice into the live conversation and Ava says "You're all set, Marcus is on his way" without the caller asking.
 5. **Charge after the job.** In the owner dashboard the owner enters the final bill. PayPal **captures** it from the hold and releases the rest. A bill larger than the hold captures the hold and sends the balance as a PayPal link where **Pay Later** can split it up.
 6. **Fair cancellations.** Cancel before dispatch and the hold is **voided**. Cancel after the truck rolled and only the $79 trip fee is **partially captured**, with the rest released.
 7. **A ticket for the tech.** When the call ends, the AI writes a structured ticket: summary, problem, urgency, safety steps taken, likely work.
 
 Callers who decline the hold are never turned away: Ava books the first morning slot instead.
+
+### Built for owners who don't care about tech
+
+- **Set up from your website.** Paste the business's website; the AI reads it and fills in services, service area, the after-hours fee, policies, and a list of facts Ava uses to answer callers.
+- **Service area in plain words.** "Northern Virginia and DC" or "within 25 miles of 22101". The AI maps it to counties the owner can review; every caller's ZIP is looked up (zippopotam.us + FCC census API, cached) and checked in code before any hold or dispatch.
+- **One line on their website.** `<script src="https://callcaptain.vercel.app/embed.js" async></script>` adds a "Talk to us now" button that opens the call panel, PayPal hold included. See it on the demo contractor site: https://callcaptain.vercel.app/site
+- **Voice and languages.** 24 multilingual voices with previews; Ava answers in the caller's language and switches mid-call (English, Spanish, French, Portuguese, German, Hindi).
 
 ## How PayPal is used
 
@@ -51,7 +58,8 @@ Every PayPal write sends a `PayPal-Request-Id`, so a retried webhook can't doubl
 - **Tools (SWAIG functions)** in `src/app/api/swaig/route.ts` are how the AI moves money: `save_job_details`, `start_paypal_hold`, `take_card_on_keypad`, `check_hold`, `dispatch_technician`, `book_morning_slot`, `cancel_visit`. Business rules live in code, not in the prompt, so the model can't dispatch a truck before the hold exists.
 - **Live notices:** when the PayPal popup is approved, `calling.ai_message` tells the agent mid-call (`src/lib/signalwire.ts`).
 - **Post-call ticket:** the AI's `post_prompt` returns JSON for the technician, shown in the dashboard.
-- **Live transcript** streams to the call page from the AI debug webhook.
+- **Live transcript** streams to the call page from the AI debug webhook. Anything card-length is masked before it's stored.
+- **Setup AI** (`src/lib/ai.ts`, AI SDK + Vercel AI Gateway): website → draft settings and call knowledge; plain-words service area → census county list.
 
 ## Try it (judges)
 
