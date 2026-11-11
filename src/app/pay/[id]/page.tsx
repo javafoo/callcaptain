@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BalancePay } from "@/components/balance-pay";
+import { SaveCardPage } from "@/components/save-card-page";
 import { Icon } from "@/components/ui";
 import { getJob } from "@/lib/db";
 import { dollars, shortId } from "@/lib/format";
@@ -12,7 +13,13 @@ export const metadata = { title: "Your invoice" };
 async function Invoice({ params }: { params: PageProps<"/pay/[id]">["params"] }) {
   const { id } = await params;
   const [job, b] = await Promise.all([getJob(id), getBusiness()]);
-  if (!job || !job.final_cents) notFound();
+  if (!job) notFound();
+  // Card on file requested: the same secure PayPal form the call screen shows.
+  if (job.status === "awaiting_card" || (job.status === "card_saved" && !job.final_cents)) {
+    return <SaveCardPage job={job} businessName={b.businessName} clientId={process.env.PAYPAL_CLIENT_ID ?? ""} />;
+  }
+  if (!job.final_cents) notFound();
+  const onFile = job.secure_with === "card" && !job.authorization_id;
   const paid = job.status === "paid";
   const heldPaid = job.final_cents - (job.balance_cents ?? 0);
   const issued = new Date(job.updated_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
@@ -45,13 +52,20 @@ async function Invoice({ params }: { params: PageProps<"/pay/[id]">["params"] })
               <td className="py-2.5 text-gray-600">Repair, parts and labor</td>
               <td className="py-2.5 text-right tabular-nums text-gray-900">{dollars(job.final_cents)}</td>
             </tr>
-            <tr>
-              <td className="py-2.5 text-gray-600">Service-call hold, already charged</td>
-              <td className="py-2.5 text-right tabular-nums text-gray-900">−{dollars(heldPaid)}</td>
-            </tr>
+            {onFile ? (
+              <tr>
+                <td className="py-2.5 text-gray-600">Charged to your card on file, with your approval</td>
+                <td className="py-2.5 text-right tabular-nums text-gray-900">−{dollars(job.captured_cents)}</td>
+              </tr>
+            ) : (
+              <tr>
+                <td className="py-2.5 text-gray-600">Service-call hold, already charged</td>
+                <td className="py-2.5 text-right tabular-nums text-gray-900">−{dollars(heldPaid)}</td>
+              </tr>
+            )}
             <tr>
               <td className="pt-3 font-semibold text-gray-900">{paid ? "Paid" : "Balance"}</td>
-              <td className="pt-3 text-right text-base font-semibold tabular-nums text-gray-900">{dollars(paid ? job.balance_cents : job.balance_cents)}</td>
+              <td className="pt-3 text-right text-base font-semibold tabular-nums text-gray-900">{dollars(onFile ? 0 : job.balance_cents)}</td>
             </tr>
           </tbody>
         </table>

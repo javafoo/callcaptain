@@ -53,6 +53,7 @@ export function sanitize(input: Record<string, unknown>): Business {
     serviceCallCents,
     // The trip fee is captured from the hold, so it can't be larger than the hold.
     tripFeeCents: Math.min(cents(input.tripFeeDollars, d.tripFeeCents, 100000), serviceCallCents),
+    secureWith: input.secureWith === "card" ? "card" : "hold",
     serviceAreaText: typeof input.serviceAreaText === "string" ? input.serviceAreaText.trim().slice(0, 200) : d.serviceAreaText,
     serviceCounties: (Array.isArray(input.serviceCounties) ? input.serviceCounties : d.serviceCounties)
       .filter((c): c is County => Boolean(c && typeof c === "object" && typeof (c as County).county === "string" && typeof (c as County).state === "string"))

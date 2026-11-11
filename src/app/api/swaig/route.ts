@@ -4,7 +4,7 @@ import { checkArea } from "@/lib/area";
 import { zipFrom } from "@/lib/business";
 import { dollars, event, findJobByCall, getJob, updateJob, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
-import { bookMorning, cancelVisit, dispatchTechnician, requestPayPalHold } from "@/lib/money";
+import { SECURED, bookMorning, cancelVisit, dispatchTechnician, requestCardOnFile, requestPayPalHold } from "@/lib/money";
 import { getBusiness } from "@/lib/settings";
 
 /**
@@ -24,7 +24,6 @@ type SwaigRequest = {
 };
 
 const reply = (response: string, action?: unknown[]) => NextResponse.json(action ? { response, action } : { response });
-const HELD = new Set(["hold_placed", "dispatched"]);
 
 export async function POST(req: Request) {
   if (!hasWebhookKey(req)) return new NextResponse("forbidden", { status: 403 });
@@ -81,7 +80,11 @@ export async function POST(req: Request) {
           );
         }
         return reply(
-          `Saved${check.unverified ? ". The ZIP couldn't be confirmed, so the owner will double-check the address; carry on normally" : ", and the address is in the service area"}. The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`,
+          `Saved${check.unverified ? ". The ZIP couldn't be confirmed, so the owner will double-check the address; carry on normally" : ", and the address is in the service area"}. ${
+            job.secure_with === "card"
+              ? `To send someone tonight, they save a card or PayPal on file with PayPal. Nothing is charged tonight. The after-hours service call is ${dollars(job.fee_cents)}, part of the final bill; the technician goes over the final price on site and it is charged to that card only after they agree. Cancelling is free until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee is charged to the card. Explain this simply and ask if that works for them.`
+              : `The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`
+          }`,
         );
       }
 
@@ -90,7 +93,7 @@ export async function POST(req: Request) {
         // (SignalWire drops a browser call on that hand-off); if an old session asks, show the card form.
         if (job.channel !== "web") {
           if (job.status === "out_of_area") return outOfArea();
-          if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
+          if (SECURED.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
           job = await updateJob(
             job.id,
             { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
@@ -99,9 +102,18 @@ export async function POST(req: Request) {
           return reply("Handing the caller to the secure keypad now.", [keypadPayAction(job, b, originOf(req), env.webhookSecret)]);
         }
       // falls through
+      case "save_card_on_file": {
+        if (job.status === "out_of_area") return outOfArea();
+        if (SECURED.has(job.status)) return reply("The card is already on file. Dispatch the technician if you have not.");
+        job = await requestCardOnFile(job);
+        return reply(
+          `A secure PayPal form is now on the caller's screen. They can save PayPal, or type a debit or credit card in the card boxes and tap Save card. Nothing is charged. You will get a notice the moment it's saved. Meanwhile, give one practical tip.`,
+        );
+      }
+
       case "start_paypal_hold": {
         if (job.status === "out_of_area") return outOfArea();
-        if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
+        if (SECURED.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
         job = await requestPayPalHold(job, b);
         return reply(
           `The PayPal button for the ${dollars(job.fee_cents)} hold is now on the caller's screen. Ask them to approve with PayPal or Venmo, or tap "Debit or Credit Card" to type a card. You will get a notice the moment it is approved. Meanwhile, give one practical tip.`,
@@ -109,26 +121,33 @@ export async function POST(req: Request) {
       }
 
       case "check_hold": {
-        if (job.status === "hold_placed") return reply("Approved. Thank them and call dispatch_technician now.");
+        if (job.status === "hold_placed" || job.status === "card_saved") return reply("Done. Thank them and call dispatch_technician now.");
+        if (job.status === "awaiting_card") return reply("Not saved yet. Ask if they see the PayPal form. They can tap PayPal, or type a card in the boxes and tap Save card.");
         if (job.status === "dispatched") return reply(`Already approved and ${job.tech_name} is on the way, arriving in ${job.eta}.`);
         return reply(job.channel === "web" ? 'Not approved yet. Ask if the PayPal window opened. If it is giving them trouble, the "Debit or Credit Card" button works too.' : "Not approved yet. Offer to try the keypad again, or the morning slot.");
       }
 
       case "dispatch_technician": {
         if (job.status === "out_of_area") return outOfArea();
-        if (!HELD.has(job.status)) {
-          return reply("The hold is not approved yet, so you can't dispatch. Help them finish the hold, or offer the morning slot.");
+        if (!SECURED.has(job.status)) {
+          return reply(
+            job.secure_with === "card"
+              ? "No card is on file yet, so you can't dispatch. Help them finish saving it, or offer the morning slot."
+              : "The hold is not approved yet, so you can't dispatch. Help them finish the hold, or offer the morning slot.",
+          );
         }
         job = await dispatchTechnician(job, b);
         return reply(
-          `${job.tech_name} is dispatched and will arrive in ${job.eta}. The technician quotes the repair before starting any work. The final bill can be paid with PayPal, including Pay Later. Tell the caller, then ask if there's anything else.`,
+          job.secure_with === "card"
+            ? `${job.tech_name} is dispatched and will arrive in ${job.eta}. The technician goes over the price before starting any work, and the final bill goes on the card on file once they agree. Tell the caller, then ask if there's anything else.`
+            : `${job.tech_name} is dispatched and will arrive in ${job.eta}. The technician quotes the repair before starting any work. The final bill can be paid with PayPal, including Pay Later. Tell the caller, then ask if there's anything else.`,
         );
       }
 
       case "book_morning_slot": {
         if (job.status === "out_of_area") return outOfArea();
         job = await bookMorning(job, b);
-        return reply(`Booked ${b.morningSlot}, no hold needed. Confirm the time and remind them to keep the water shut off.`);
+        return reply(`Booked ${b.morningSlot}, nothing needed up front. Confirm the time and remind them to keep the water shut off.`);
       }
 
       case "cancel_visit": {

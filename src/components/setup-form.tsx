@@ -13,6 +13,7 @@ type Form = {
   services: string;
   serviceCallDollars: string;
   tripFeeDollars: string;
+  secureWith: "hold" | "card";
   serviceZips: string;
   serviceAreaText: string;
   serviceCounties: County[];
@@ -32,6 +33,7 @@ const toForm = (b: Business): Form => ({
   services: b.services,
   serviceCallDollars: String(b.serviceCallCents / 100),
   tripFeeDollars: String(b.tripFeeCents / 100),
+  secureWith: b.secureWith,
   serviceZips: b.serviceZips.join(", "),
   serviceAreaText: b.serviceAreaText,
   serviceCounties: b.serviceCounties,
@@ -277,15 +279,44 @@ export function SetupForm({ initial }: { initial: Business }) {
         </Card>
 
         <Card>
-          <CardHeader title="Pricing" subtitle="Held through PayPal on the call, charged only after the job." />
+          <CardHeader title="Pricing and payment" subtitle="How a night visit is secured before the technician drives out." />
           <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <Field label="After-hours service call" hint="Placed as a PayPal hold. Goes toward the repair.">
+            <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2" role="radiogroup" aria-label="How to secure the visit">
+              {(
+                [
+                  ["card", "Card on file", "The caller saves a card or PayPal with PayPal. $0 tonight. You charge the final bill after they approve it on site."],
+                  ["hold", "Hold the service call", "PayPal holds the service-call amount on the call. Charged after the job; the rest is released."],
+                ] as const
+              ).map(([value, title, body]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.secureWith === value}
+                  onClick={() => set("secureWith", value)}
+                  className={cx(
+                    "rounded-xl p-4 text-left ring-1 transition",
+                    form.secureWith === value ? "bg-brand-50 ring-2 ring-brand-500" : "bg-white ring-gray-200 hover:ring-gray-300",
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <span className={cx("h-4 w-4 rounded-full", form.secureWith === value ? "bg-brand-600 ring-4 ring-brand-100" : "ring-1 ring-gray-300")} />
+                    {title}
+                  </span>
+                  <span className="mt-1 block text-sm text-gray-500">{body}</span>
+                </button>
+              ))}
+            </div>
+            <Field label="After-hours service call" hint={form.secureWith === "card" ? "Part of the final bill. Ava explains it on the call." : "Placed as a PayPal hold. Goes toward the repair."}>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                 <input className={cx(inputClass, "pl-7")} inputMode="decimal" value={form.serviceCallDollars} onChange={(e) => set("serviceCallDollars", e.target.value.replace(/[^\d.]/g, ""))} />
               </div>
             </Field>
-            <Field label="Trip fee if they cancel after dispatch" hint="Kept from the hold; the rest is released. Can't exceed the service call.">
+            <Field
+              label="Trip fee if they cancel after dispatch"
+              hint={form.secureWith === "card" ? "Charged to the card on file. Can't exceed the service call." : "Kept from the hold; the rest is released. Can't exceed the service call."}
+            >
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                 <input className={cx(inputClass, "pl-7")} inputMode="decimal" value={form.tripFeeDollars} onChange={(e) => set("tripFeeDollars", e.target.value.replace(/[^\d.]/g, ""))} />
@@ -404,11 +435,12 @@ export function SetupForm({ initial }: { initial: Business }) {
           <CardHeader title="Preview" subtitle="How the next call starts." />
           <div className="space-y-4 p-5 text-sm">
             <div className="rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-gray-800">
-              Thanks for calling {name}&apos;s after-hours line. I&apos;m {form.agentName || "your agent"}, the AI dispatcher. What&apos;s going on?
+              {name}, this is {form.agentName || "your agent"}, the after-hours AI dispatcher. What&apos;s going on?
             </div>
             <ul className="space-y-2 text-gray-600">
               <li className="flex gap-2">
-                <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" /> Holds {dollars(fee)} through PayPal before dispatching
+                <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                {form.secureWith === "card" ? "Saves a card on file with PayPal before dispatching, $0 tonight" : `Holds ${dollars(fee)} through PayPal before dispatching`}
               </li>
               <li className="flex gap-2">
                 <Icon name="pin" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />

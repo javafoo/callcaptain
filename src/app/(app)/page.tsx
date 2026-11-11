@@ -12,7 +12,7 @@ async function LiveCall() {
       <CallDemo
         paypalClientId={process.env.PAYPAL_CLIENT_ID ?? ""}
         liveCalls={env.signalwireReady}
-        business={{ name: b.businessName, agentName: b.agentName, technician: b.technician, tripFeeCents: b.tripFeeCents }}
+        business={{ name: b.businessName, agentName: b.agentName, technician: b.technician, tripFeeCents: b.tripFeeCents, secureWith: b.secureWith }}
       />
       <MoneyFlows fee={dollars(b.serviceCallCents)} tripFee={dollars(b.tripFeeCents)} agent={b.agentName} />
     </>

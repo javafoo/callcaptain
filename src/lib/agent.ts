@@ -24,7 +24,14 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
   const multi = b.languages.length > 1;
   const voice = voiceString(b.voiceId);
 
-  const paymentStep = web
+  // Card on file only works where the caller has a screen (browser calls). Phone calls keep the keypad hold.
+  const cardOnFile = web && job.secure_with === "card";
+  const paymentStep = cardOnFile
+    ? [
+        `When the caller agrees, call save_card_on_file. A secure PayPal form then appears on their screen.`,
+        `Tell them they can save PayPal, or type a debit or credit card in the boxes and tap Save card. Nothing is charged tonight.`,
+      ]
+    : web
     ? [
         `When the caller agrees to the hold, call start_paypal_hold. A secure PayPal button then appears on their screen.`,
         `Tell them they can approve it with PayPal, Venmo, or a card: for a card, they tap "Debit or Credit Card" under the PayPal button. Remind them it is a hold, not a charge.`,
@@ -115,11 +122,13 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                     "Safety first. If water is still running, walk them to the shutoff: the valve on the cold pipe above the water heater, or the main shutoff where the water line enters the house. If water is near outlets or the electrical panel, tell them to stay out of the water. If they smell gas, tell them to leave the house now and call 911 and the gas company, and do not dispatch.",
                     "Get their first name, the street address with ZIP code, what happened, and a callback number. Then call save_job_details.",
                     "If save_job_details says the address is outside the service area, apologize, explain you can't send anyone there, and suggest a local plumber. Do not offer a hold. Never invent a reason a place isn't covered; if the caller says it should be, take a callback number and say the owner will review it in the morning.",
-                    `Explain the after-hours service call: it is ${fee}, and it goes toward the repair. To send someone tonight you place a hold for it now. Nothing is charged until the work is done, and if they cancel before the technician heads out the hold is simply released.`,
+                    cardOnFile
+                      ? `Explain how it works: to send someone tonight, they keep a card on file with PayPal. Nothing is charged tonight. The technician goes over the price on site, and the final bill, including the ${fee} after-hours service call, goes on that card only once they agree. Cancelling is free until the technician heads out. Ask if that works.`
+                      : `Explain the after-hours service call: it is ${fee}, and it goes toward the repair. To send someone tonight you place a hold for it now. Nothing is charged until the work is done, and if they cancel before the technician heads out the hold is simply released.`,
                     ...paymentStep,
                     "While you wait, stay with them and give one practical tip, like moving valuables off the floor or putting a bucket under the drip.",
-                    "When you are told the hold is approved, thank them and call dispatch_technician right away. Tell them the technician's name and arrival window.",
-                    `If they decline the hold, do not push. Offer the first morning slot, ${b.morningSlot}, with book_morning_slot. Nobody is turned away.`,
+                    `When you are told the ${cardOnFile ? "card is saved" : "hold is approved"}, thank them and call dispatch_technician right away. Tell them the technician's name and arrival window.`,
+                    `If they decline, do not push. Offer the first morning slot, ${b.morningSlot}, with book_morning_slot. Nobody is turned away.`,
                     "Before ending, ask if there is anything else, then say goodbye warmly.",
                   ],
                 },
@@ -131,9 +140,11 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                       : "Never ask for, repeat or accept card numbers spoken out loud. If the caller starts reading a card number, stop them politely and use take_card_on_keypad, which keeps the card away from you.",
                     "If you ever receive card or keypad digits as text, never repeat or use them.",
                     "Never quote repair prices. The technician quotes on site before any work starts.",
-                    `If the caller cancels after the technician is on the way, a ${tripFee} trip fee applies and the rest of the hold is released. Use cancel_visit if they want to cancel.`,
-                    "Only say a hold is placed after a function result or a system notice confirms it.",
-                    "If a big repair comes up, mention that the final bill can be paid with PayPal, including Pay Later, so they can split it up.",
+                    cardOnFile
+                      ? `If the caller cancels after the technician is on the way, a ${tripFee} trip fee is charged to the card on file. Use cancel_visit if they want to cancel.`
+                      : `If the caller cancels after the technician is on the way, a ${tripFee} trip fee applies and the rest of the hold is released. Use cancel_visit if they want to cancel.`,
+                    `Only say the ${cardOnFile ? "card is saved" : "hold is placed"} after a function result or a system notice confirms it.`,
+                    ...(cardOnFile ? [] : ["If a big repair comes up, mention that the final bill can be paid with PayPal, including Pay Later, so they can split it up."]),
                   ],
                 },
                 ...(b.instructions
@@ -169,7 +180,15 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                   },
                   fillers: { "en-US": ["Let me check that address."], default: ["One moment."] },
                 },
-                ...(web
+                ...(cardOnFile
+                  ? [
+                      {
+                        function: "save_card_on_file",
+                        description: "Show the secure PayPal form on the caller's screen to save a card or PayPal on file. Nothing is charged. Call after they agree.",
+                        parameters: { type: "object", properties: {} },
+                      },
+                    ]
+                  : web
                   ? [
                       {
                         function: "start_paypal_hold",
@@ -191,17 +210,19 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                     ]),
                 {
                   function: "check_hold",
-                  description: "Check whether the service-call hold has been approved yet. Use if the caller says they finished approving.",
+                  description: cardOnFile
+                    ? "Check whether the card has been saved yet. Use if the caller says they finished."
+                    : "Check whether the service-call hold has been approved yet. Use if the caller says they finished approving.",
                   parameters: { type: "object", properties: {} },
                 },
                 {
                   function: "dispatch_technician",
-                  description: "Send the on-call technician. Only works once the hold is approved.",
+                  description: `Send the on-call technician. Only works once the ${cardOnFile ? "card is saved" : "hold is approved"}.`,
                   parameters: { type: "object", properties: {} },
                 },
                 {
                   function: "book_morning_slot",
-                  description: "Book the first morning visit instead, with no hold, when the caller declines the hold.",
+                  description: "Book the first morning visit instead, with nothing up front, when the caller declines.",
                   parameters: { type: "object", properties: {} },
                 },
                 {

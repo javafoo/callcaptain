@@ -199,3 +199,84 @@ export function payerLabel(order: Order): string {
   if (s?.paypal) return "PayPal";
   return "PayPal";
 }
+
+/*
+ * Card on file (PayPal Vault v3, "save payment method without purchase"):
+ *
+ *   /v3/vault/setup-tokens     → what the PayPal button / card fields approve on the caller's screen
+ *   /v3/vault/payment-tokens   → the saved card or PayPal account, $0 charged
+ *   Orders v2 + vault_id       → charge it later (final bill, or the trip fee) as a merchant-initiated payment
+ *
+ * Docs: https://developer.paypal.com/docs/api/payment-tokens/v3/
+ */
+
+export type VaultKind = "card" | "paypal" | "venmo";
+
+/** Step 1: a setup token for the caller to approve. For cards, PayPal's card fields collect the number. */
+export async function createSetupToken(kind: VaultKind, jobId: string, returnUrl: string, businessName: string): Promise<string> {
+  const experience = { return_url: returnUrl, cancel_url: returnUrl, brand_name: businessName.slice(0, 127), shipping_preference: "NO_SHIPPING" };
+  const payment_source =
+    kind === "card"
+      ? { card: { verification_method: "SCA_WHEN_REQUIRED", experience_context: { return_url: returnUrl, cancel_url: returnUrl } } }
+      : { [kind]: { usage_type: "MERCHANT", customer_type: "CONSUMER", permit_multiple_payment_tokens: false, experience_context: experience } };
+  const token = await pp<{ id: string }>("/v3/vault/setup-tokens", {
+    method: "POST",
+    idempotencyKey: `setup-${jobId}-${kind}-${randomUUID()}`,
+    body: { payment_source },
+  });
+  return token.id;
+}
+
+type PaymentToken = {
+  id: string;
+  payment_source?: { card?: { brand?: string; last_digits?: string }; paypal?: { email_address?: string }; venmo?: { email_address?: string } };
+};
+
+/** Step 2: the caller approved. Turn the setup token into a saved payment method. */
+export async function createPaymentToken(setupTokenId: string): Promise<{ id: string; type: VaultKind; label: string; last4: string | null }> {
+  const t = await pp<PaymentToken>("/v3/vault/payment-tokens", {
+    method: "POST",
+    idempotencyKey: `pt-${setupTokenId}`,
+    body: { payment_source: { token: { id: setupTokenId, type: "SETUP_TOKEN" } } },
+  });
+  const s = t.payment_source ?? {};
+  if (s.card) {
+    const brand = s.card.brand ? s.card.brand.charAt(0) + s.card.brand.slice(1).toLowerCase() : "Card";
+    return { id: t.id, type: "card", label: `${brand} •••• ${s.card.last_digits ?? ""}`.trim(), last4: s.card.last_digits ?? null };
+  }
+  if (s.venmo) return { id: t.id, type: "venmo", label: "Venmo", last4: null };
+  return { id: t.id, type: "paypal", label: s.paypal?.email_address ? `PayPal (${s.paypal.email_address})` : "PayPal", last4: null };
+}
+
+/** Step 3: charge the saved method, with the customer not present (merchant-initiated). */
+export async function chargeSaved(
+  vault: { id: string; type: VaultKind },
+  cents: number,
+  jobId: string,
+  description: string,
+  idempotencyKey: string,
+): Promise<{ orderId: string; captureId: string }> {
+  const payment_source =
+    vault.type === "card"
+      ? { card: { vault_id: vault.id, stored_credential: { payment_initiator: "MERCHANT", payment_type: "UNSCHEDULED", usage: "SUBSEQUENT" } } }
+      : { [vault.type]: { vault_id: vault.id } };
+  const order = await pp<Order>("/v2/checkout/orders", {
+    method: "POST",
+    idempotencyKey,
+    body: {
+      intent: "CAPTURE",
+      purchase_units: [{ reference_id: jobId, custom_id: jobId, invoice_id: idempotencyKey, description: description.slice(0, 127), soft_descriptor: "CALL CAPTAIN", amount: usd(cents) }],
+      payment_source,
+    },
+  });
+  const capture = order.purchase_units?.[0]?.payments?.captures?.[0];
+  if (order.status !== "COMPLETED" || !capture || capture.status !== "COMPLETED") {
+    throw new PayPalError(`PayPal didn't complete the charge (${capture?.status ?? order.status}).`, 402, capture?.status ?? order.status, null);
+  }
+  return { orderId: order.id, captureId: capture.id };
+}
+
+/** Forget the saved method (the visit was cancelled before anything was owed). */
+export async function deletePaymentToken(id: string) {
+  return pp<Record<string, never>>(`/v3/vault/payment-tokens/${id}`, { method: "DELETE" });
+}

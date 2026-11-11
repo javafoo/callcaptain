@@ -30,6 +30,12 @@ export async function POST(req: Request) {
   }
   // The first AI session also ends when it hands the call to the secure keypad; that isn't the end of the call.
   const handingOff = job.hold_method === "keypad" && job.status === "awaiting_hold" && job.pay_step !== null;
-  await updateJob(job.id, { summary }, ...(handingOff ? [] : [event("call_ended", "Call ended. AI wrote the technician's ticket.")]));
+  // Hung up before anything was secured or booked: close the job instead of leaving it "on the call".
+  const unfinished = !handingOff && ["on_call", "awaiting_hold", "awaiting_card"].includes(job.status);
+  await updateJob(
+    job.id,
+    { summary, ...(unfinished ? { status: "ended" as const } : {}) },
+    ...(handingOff ? [] : [event("call_ended", unfinished ? "Call ended before a visit was secured. AI wrote a summary." : "Call ended. AI wrote the technician's ticket.")]),
+  );
   return NextResponse.json({});
 }

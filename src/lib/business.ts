@@ -19,6 +19,7 @@ export const LANGUAGE_OPTIONS = [
 ] as const;
 
 export type County = { county: string; state: string };
+export type SecureWith = "hold" | "card";
 
 export type Business = {
   businessName: string;
@@ -29,6 +30,12 @@ export type Business = {
   services: string;
   serviceCallCents: number;
   tripFeeCents: number;
+  /**
+   * How a night visit is secured before the technician drives out:
+   *  - "hold": a PayPal authorization for the service call, captured after the job
+   *  - "card": the customer saves a card or PayPal with PayPal ($0 now); the owner charges it after the job
+   */
+  secureWith: SecureWith;
   /** The service area in the owner's words, e.g. "Northern Virginia and DC". Read to callers. */
   serviceAreaText: string;
   /** Counties (or independent cities) the AI mapped from serviceAreaText; checked per call. */
@@ -52,6 +59,7 @@ export const DEFAULT_BUSINESS: Business = {
   services: "plumbing, water heaters, heating and drains",
   serviceCallCents: 14900,
   tripFeeCents: 7900,
+  secureWith: "hold",
   serviceAreaText: "San Jose and the rest of Santa Clara County",
   serviceCounties: [{ county: "Santa Clara County", state: "CA" }],
   serviceZips: [],

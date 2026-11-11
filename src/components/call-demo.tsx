@@ -3,26 +3,27 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Job } from "@/lib/db";
 import { dollars, shortId } from "@/lib/format";
+import { SaveCardOnFile } from "./card-on-file";
 import { KEYPAD_STEPS, SecureKeypad } from "./keypad";
 import { PayPalPay } from "./paypal-hold";
 import { StatusPill } from "./status-pill";
 import { Card, Icon, cx } from "./ui";
 import { useCall } from "./use-call";
 
-export type DemoBusiness = { name: string; agentName: string; technician: string; tripFeeCents: number };
+export type DemoBusiness = { name: string; agentName: string; technician: string; tripFeeCents: number; secureWith: "hold" | "card" };
 
-const STEPS = [
+const steps = (card: boolean) => [
   { label: "Answered", icon: "phone" as const },
   { label: "Triage", icon: "wrench" as const },
-  { label: "PayPal hold", icon: "shield" as const },
+  { label: card ? "Card on file" : "PayPal hold", icon: "shield" as const },
   { label: "Dispatched", icon: "truck" as const },
 ];
 
 function progress(job: Job | null): number {
   if (!job) return -1;
   if (["dispatched", "completed", "balance_due", "paid", "cancelled_fee"].includes(job.status)) return 4;
-  if (job.status === "hold_placed") return 3;
-  if (job.status === "awaiting_hold") return 2;
+  if (job.status === "hold_placed" || job.status === "card_saved") return 3;
+  if (job.status === "awaiting_hold" || job.status === "awaiting_card") return 2;
   if (job.customer_name || job.issue) return 2;
   return 1;
 }
@@ -75,7 +76,9 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
   const activity = (job?.events ?? []).filter((e) => !["caller", "agent_said"].includes(e.kind)).slice().reverse();
   const showPayPal = job?.status === "awaiting_hold" && job.hold_method === "paypal" && job.order_id;
   const keypadUnlocked = KEYPAD_STEPS.some((s) => s.key === job?.pay_step) || job?.pay_step === "payment-processing" || keypadFallback;
-  const held = job?.status === "hold_placed" || job?.status === "dispatched";
+  const card = job ? job.secure_with === "card" && job.channel === "web" : business.secureWith === "card";
+  const showSaveCard = job?.status === "awaiting_card";
+  const held = job?.status === "hold_placed" || job?.status === "card_saved" || job?.status === "dispatched";
   // Keypad open: shrink the phone's header so the whole keypad fits on screen.
   const compact = Boolean(keypadRequested && phase === "live");
 
@@ -124,7 +127,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
               {held && phase === "live" && (
                 <div className="flex items-center gap-2 rounded-2xl bg-brand-500/15 p-3 text-left text-sm text-brand-100 ring-1 ring-brand-500/30">
                   <Icon name="shield" className="h-5 w-5 shrink-0 text-brand-500" />
-                  {dollars(job?.fee_cents)} hold approved. Nothing charged.
+                  {card ? "Card saved with PayPal. Nothing charged." : `${dollars(job?.fee_cents)} hold approved. Nothing charged.`}
                 </div>
               )}
             </div>
@@ -158,13 +161,17 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
                 <Icon name="jobs" className="h-6 w-6" />
               </span>
               <p className="mt-4 text-xl font-semibold text-gray-900">The job builds itself while you talk</p>
-              <p className="mt-1 max-w-lg text-sm text-gray-500">You play the homeowner. {business.agentName} handles the call; this card fills in live, and the PayPal button appears here when it&apos;s time to hold the service call.</p>
+              <p className="mt-1 max-w-lg text-sm text-gray-500">You play the homeowner. {business.agentName} handles the call; this card fills in live, and the PayPal {card ? "form appears here when it's time to save a card on file" : "button appears here when it's time to hold the service call"}.</p>
             </div>
             <ol className="grid gap-3 sm:grid-cols-3">
               {[
                 ["Call and explain", `Tap the green button and say something like "my water heater burst." Give a name and a San Jose address, ZIP 95112.`],
-                ["Approve the hold", "Say yes to the hold. Pay with the PayPal sandbox buyer from the README, or Debit or Credit Card with the test card below."],
-                ["Finish as the owner", "Open the job in Jobs and charge the final bill. Try $120, $1,840 or Customer cancelled."],
+                card
+                  ? ["Save a card", "Say yes when she explains the card on file. Save PayPal with the sandbox buyer from the README, or type the test card below."]
+                  : ["Approve the hold", "Say yes to the hold. Pay with the PayPal sandbox buyer from the README, or Debit or Credit Card with the test card below."],
+                card
+                  ? ["Finish as the owner", "Open the job in Jobs, enter the final bill the customer agreed to, and charge the card. Or try Customer cancelled."]
+                  : ["Finish as the owner", "Open the job in Jobs and charge the final bill. Try $120, $1,840 or Customer cancelled."],
               ].map(([title, body], i) => (
                 <li key={title} className="rounded-xl border border-gray-200 p-4">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-900 text-xs font-semibold text-white">{i + 1}</span>
@@ -192,7 +199,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
             </div>
 
             <ol className="grid grid-cols-4 border-b border-gray-100">
-              {STEPS.map((s, i) => {
+              {steps(card).map((s, i) => {
                 const done = step > i;
                 const current = step === i;
                 return (
@@ -235,8 +242,19 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
                 <p className="text-sm font-semibold tabular-nums text-gray-900">{dollars(job.fee_cents)}</p>
               </div>
               {job.status === "out_of_area" && <p className="mt-2 text-sm text-gray-500">Outside the service area. No hold, no dispatch.</p>}
-              {!held && job.status !== "out_of_area" && !showPayPal && !keypadRequested && (
-                <p className="mt-1 text-sm text-gray-500">Held on the call, charged only after the work. Free to cancel before the tech heads out.</p>
+              {!held && !["out_of_area", "ended"].includes(job.status) && !showPayPal && !showSaveCard && !keypadRequested && (
+                <p className="mt-1 text-sm text-gray-500">
+                  {card
+                    ? "Card on file, $0 tonight. Charged after the work, once the customer approves the final price."
+                    : "Held on the call, charged only after the work. Free to cancel before the tech heads out."}
+                </p>
+              )}
+              {showSaveCard && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                  <p className="text-sm font-medium text-gray-900">Keep a card on file</p>
+                  <p className="mb-3 text-sm text-gray-600">Nothing is charged tonight. You approve the final price with the technician before it&apos;s charged.</p>
+                  <SaveCardOnFile clientId={paypalClientId} jobId={job.id} onSaved={setJob} />
+                </div>
               )}
               {keypadRequested && <p className="mt-2 text-sm text-gray-600">The caller is typing a card on the secure keypad. PayPal places the hold; {business.agentName} never hears the digits.</p>}
               {showPayPal && job.order_id && (
@@ -264,10 +282,14 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
                   <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                   <div className="text-sm">
                     <p className="font-medium text-brand-700">
-                      Held with {job.hold_method === "keypad" ? `card •••• ${job.card_last4}` : "PayPal"}. $0 charged.
+                      {card
+                        ? `${job.vault_type === "card" ? `Card •••• ${job.card_last4}` : job.vault_type === "venmo" ? "Venmo" : "PayPal"} on file. $0 charged.`
+                        : `Held with ${job.hold_method === "keypad" ? `card •••• ${job.card_last4}` : "PayPal"}. $0 charged.`}
                     </p>
                     <p className="text-gray-600">
-                      Charged after the job. Cancel after dispatch and only the {dollars(business.tripFeeCents)} trip fee applies.
+                      {card
+                        ? `Charged after the job, once the customer approves the price. Cancel after dispatch and only the ${dollars(business.tripFeeCents)} trip fee is charged.`
+                        : `Charged after the job. Cancel after dispatch and only the ${dollars(business.tripFeeCents)} trip fee applies.`}
                     </p>
                   </div>
                 </div>

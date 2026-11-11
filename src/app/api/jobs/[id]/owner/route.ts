@@ -5,7 +5,8 @@ import { getBusiness } from "@/lib/settings";
 
 /**
  * The owner's buttons in the dashboard:
- *   complete { finalDollars } → capture against the hold (and send a balance link if larger)
+ *   complete { finalDollars, approved } → hold: capture (and send a balance link if larger);
+ *                                         card on file: charge the approved final bill to the saved card
  *   release                   → void the hold, nothing charged
  *   cancel                    → cancellation policy (trip fee after dispatch)
  */
@@ -13,12 +14,16 @@ export async function POST(req: Request, ctx: RouteContext<"/api/jobs/[id]/owner
   const { id } = await ctx.params;
   const job = await getJob(id);
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as { action?: string; finalDollars?: number | string };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; finalDollars?: number | string; approved?: boolean };
   const b = await getBusiness();
   try {
     switch (body.action) {
       case "complete": {
         const cents = Math.round(Number(body.finalDollars) * 100);
+        // A card-on-file charge needs the customer's OK on the final price (stored-credential consent).
+        if (job.secure_with === "card" && job.vault_id && body.approved !== true) {
+          return NextResponse.json({ error: "Confirm the customer approved this amount before charging their card." }, { status: 400 });
+        }
         return NextResponse.json({ job: await completeJob(job, b, cents) });
       }
       case "release":

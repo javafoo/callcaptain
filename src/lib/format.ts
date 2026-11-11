@@ -17,6 +17,9 @@ export const STATUS_LABEL: Record<string, string> = {
   released: "Released",
   cancelled_fee: "Cancelled, fee kept",
   out_of_area: "Out of area",
+  awaiting_card: "Saving card",
+  card_saved: "Card on file",
+  ended: "Call ended",
 };
 
 /** Pill colors: soft background, strong text, matching dot. */
@@ -32,6 +35,9 @@ export const STATUS_TONE: Record<string, { pill: string; dot: string }> = {
   released: { pill: "bg-gray-100 text-gray-600 ring-gray-200", dot: "bg-gray-400" },
   cancelled_fee: { pill: "bg-rose-50 text-rose-700 ring-rose-200", dot: "bg-rose-500" },
   out_of_area: { pill: "bg-gray-100 text-gray-600 ring-gray-200", dot: "bg-gray-400" },
+  awaiting_card: { pill: "bg-amber-50 text-amber-800 ring-amber-200", dot: "bg-amber-500" },
+  card_saved: { pill: "bg-indigo-50 text-indigo-700 ring-indigo-200", dot: "bg-indigo-500" },
+  ended: { pill: "bg-gray-100 text-gray-500 ring-gray-200", dot: "bg-gray-300" },
 };
 
 export function shortId(id: string) {

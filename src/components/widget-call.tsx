@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@/lib/db";
 import { dollars } from "@/lib/format";
+import { SaveCardOnFile } from "./card-on-file";
 import { KEYPAD_STEPS, SecureKeypad } from "./keypad";
 import { PayPalPay } from "./paypal-hold";
 import { Icon, cx } from "./ui";
@@ -60,7 +61,8 @@ export function WidgetCall({ paypalClientId, liveCalls, businessName, agentName 
   const active = phase === "connecting" || phase === "live";
   const seconds = liveAt && now ? Math.max(0, Math.floor((now - liveAt) / 1000)) : 0;
   const showPayPal = job?.status === "awaiting_hold" && job.hold_method === "paypal" && job.order_id;
-  const held = job?.status === "hold_placed" || job?.status === "dispatched";
+  const held = job?.status === "hold_placed" || job?.status === "card_saved" || job?.status === "dispatched";
+  const card = job?.secure_with === "card";
   const keypadUnlocked = KEYPAD_STEPS.some((s) => s.key === job?.pay_step) || job?.pay_step === "payment-processing" || keypadFallback;
 
   return (
@@ -110,6 +112,13 @@ export function WidgetCall({ paypalClientId, liveCalls, businessName, agentName 
                   />
                 </div>
               )}
+              {job?.status === "awaiting_card" && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                  <p className="text-sm font-semibold">Keep a card on file</p>
+                  <p className="mb-3 text-xs text-gray-600">Nothing is charged tonight. You approve the final price with the technician first.</p>
+                  <SaveCardOnFile clientId={paypalClientId} jobId={job.id} onSaved={setJob} />
+                </div>
+              )}
               {keypadRequested && phase === "live" && (
                 <div className="rounded-2xl bg-ink-900 p-2">
                   <SecureKeypad serverStep={job?.pay_step ?? null} unlocked={keypadUnlocked} onSend={(d) => void sendDigit(d)} />
@@ -119,7 +128,7 @@ export function WidgetCall({ paypalClientId, liveCalls, businessName, agentName 
                 <div className="flex items-start gap-3 rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-200">
                   <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                   <div className="text-sm">
-                    <p className="font-semibold text-brand-700">{dollars(job?.fee_cents)} hold placed. $0 charged.</p>
+                    <p className="font-semibold text-brand-700">{card ? "Card saved with PayPal. $0 charged." : `${dollars(job?.fee_cents)} hold placed. $0 charged.`}</p>
                     {job?.tech_name && <p className="text-gray-600">{job.tech_name} is on the way, arriving in {job.eta}.</p>}
                   </div>
                 </div>

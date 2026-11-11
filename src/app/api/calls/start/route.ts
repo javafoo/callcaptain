@@ -34,7 +34,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Too many calls from this connection. Please try again in a few minutes." }, { status: 429 });
   }
   try {
-    const job = await createJob("web", (await getBusiness()).serviceCallCents);
+    const b = await getBusiness();
+    const job = await createJob("web", b.serviceCallCents, null, b.secureWith);
     const { token, destination } = await createGuestToken();
     return NextResponse.json({ jobId: job.id, token, destination }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {

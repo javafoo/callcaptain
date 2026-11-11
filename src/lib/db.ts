@@ -16,9 +16,12 @@ export type JobStatus =
   | "paid" // balance paid
   | "released" // hold voided, nothing charged
   | "cancelled_fee" // cancelled after dispatch, trip fee captured, rest released
-  | "out_of_area"; // address outside the owner's service area; nothing held
+  | "out_of_area" // address outside the owner's service area; nothing held
+  | "awaiting_card" // card-on-file mode: agent asked the caller to save a card or PayPal
+  | "card_saved" // card-on-file mode: saved with PayPal, $0 charged
+  | "ended"; // the call ended before anything was secured or booked
 
-export type HoldMethod = "paypal" | "keypad";
+export type HoldMethod = "paypal" | "keypad" | "vault";
 
 export type JobEvent = { at: string; kind: string; text: string };
 
@@ -49,6 +52,11 @@ export type Job = {
   balance_order_id: string | null;
   tech_name: string | null;
   eta: string | null;
+  /** "hold" or "card", copied from the owner's setting when the call starts. */
+  secure_with: "hold" | "card";
+  /** Card-on-file mode: PayPal vault payment token and what it is ("card" | "paypal" | "venmo"). */
+  vault_id: string | null;
+  vault_type: string | null;
   summary: Record<string, unknown> | null;
   events: JobEvent[];
 };
@@ -95,6 +103,9 @@ function ensureSchema(): Promise<void> {
       )`);
     await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS zip text`);
     await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pay_step text`);
+    await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS secure_with text NOT NULL DEFAULT 'hold'`);
+    await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vault_id text`);
+    await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vault_type text`);
     await sql.query(`CREATE INDEX IF NOT EXISTS jobs_call_id ON jobs (call_id)`);
     await sql.query(`CREATE INDEX IF NOT EXISTS jobs_created ON jobs (created_at DESC)`);
   })().catch((e) => {
@@ -127,16 +138,19 @@ const COLUMNS = new Set([
   "balance_order_id",
   "tech_name",
   "eta",
+  "secure_with",
+  "vault_id",
+  "vault_type",
   "summary",
 ]);
 
 export type JobPatch = Partial<Omit<Job, "id" | "created_at" | "updated_at" | "events">>;
 
-export async function createJob(channel: Job["channel"], feeCents: number, callId: string | null = null): Promise<Job> {
+export async function createJob(channel: Job["channel"], feeCents: number, callId: string | null = null, secureWith: Job["secure_with"] = "hold"): Promise<Job> {
   await ensureSchema();
   const rows = (await client().query(
-    `INSERT INTO jobs (channel, fee_cents, call_id, events) VALUES ($1, $2, $3, $4::jsonb) RETURNING *`,
-    [channel, feeCents, callId, JSON.stringify([event("call", channel === "web" ? "Browser call started" : "Phone call answered")])],
+    `INSERT INTO jobs (channel, fee_cents, call_id, secure_with, events) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *`,
+    [channel, feeCents, callId, secureWith, JSON.stringify([event("call", channel === "web" ? "Browser call started" : "Phone call answered")])],
   )) as Job[];
   return rows[0];
 }

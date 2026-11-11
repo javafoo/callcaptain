@@ -30,7 +30,7 @@ const theme = themeQuartz.withParams({
   cellHorizontalPadding: 16,
 });
 
-const HELD = new Set(["hold_placed", "dispatched"]);
+const SECURED = new Set(["hold_placed", "card_saved", "dispatched"]);
 
 function StatusCell({ value }: ICellRendererParams<Job, string>) {
   return value ? <StatusPill status={value} /> : null;
@@ -71,12 +71,17 @@ export function Dashboard({ initialJobId }: { initialJobId: string | null }) {
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
 
   const stats = useMemo(() => {
-    const secured = jobs.filter((j) => j.authorization_id).length;
+    const secured = jobs.filter((j) => j.authorization_id || j.vault_id || j.captured_cents > 0).length;
     const answered = jobs.length;
     return [
       { label: "Calls answered", value: String(answered), note: "after hours", icon: "phone" as const },
       { label: "Visits secured", value: String(secured), note: answered ? `${Math.round((secured / answered) * 100)}% of calls` : "no calls yet", icon: "shield" as const },
-      { label: "Held right now", value: dollars(jobs.filter((j) => HELD.has(j.status)).reduce((s, j) => s + j.fee_cents, 0)), note: "not charged yet", icon: "clock" as const },
+      {
+        label: "Secured, not charged",
+        value: dollars(jobs.filter((j) => SECURED.has(j.status)).reduce((s, j) => s + j.fee_cents, 0)),
+        note: "holds and cards on file",
+        icon: "clock" as const,
+      },
       { label: "Collected", value: dollars(jobs.reduce((s, j) => s + (j.captured_cents ?? 0), 0)), note: "through PayPal", icon: "dollar" as const },
     ];
   }, [jobs]);
@@ -139,6 +144,7 @@ export function Dashboard({ initialJobId }: { initialJobId: string | null }) {
 
 function JobPanel({ job, onChanged }: { job: Job | null; onChanged: () => Promise<void> }) {
   const [finalDollars, setFinalDollars] = useState("");
+  const [approved, setApproved] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -166,10 +172,13 @@ function JobPanel({ job, onChanged }: { job: Job | null; onChanged: () => Promis
     if (!res.ok) setError(out.error ?? "PayPal didn't accept that.");
     setBusy(null);
     setFinalDollars("");
+    setApproved(false);
     await onChanged();
   };
 
-  const held = HELD.has(job.status);
+  const held = SECURED.has(job.status);
+  // Card-on-file job (phone calls in card mode fall back to a keypad hold, which has an authorization).
+  const card = job.secure_with === "card" && !job.authorization_id;
   const summary = job.summary as Record<string, string> | null;
   const timeline = job.events.filter((e) => e.kind !== "caller" && e.kind !== "agent_said").slice().reverse();
 
@@ -217,7 +226,7 @@ function JobPanel({ job, onChanged }: { job: Job | null; onChanged: () => Promis
 
       <div className="border-b border-gray-100 px-5 py-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-gray-900">Service-call hold</span>
+          <span className="font-medium text-gray-900">{card ? "After-hours service call (card on file)" : "Service-call hold"}</span>
           <span className="tabular-nums text-gray-900">{dollars(job.fee_cents)}</span>
         </div>
         <div className="mt-1 flex items-center justify-between text-sm">
@@ -231,7 +240,7 @@ function JobPanel({ job, onChanged }: { job: Job | null; onChanged: () => Promis
               className="space-y-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                void act("complete", { finalDollars });
+                void act("complete", { finalDollars, approved });
               }}
             >
               <label className="text-sm font-medium text-gray-700" htmlFor="final">
@@ -249,18 +258,26 @@ function JobPanel({ job, onChanged }: { job: Job | null; onChanged: () => Promis
                     className={cx(inputClass, "pl-7")}
                   />
                 </div>
-                <Button disabled={!finalDollars || busy !== null}>{busy === "complete" ? "Charging…" : "Charge"}</Button>
+                <Button disabled={!finalDollars || busy !== null || (card && !approved)}>{busy === "complete" ? "Charging…" : card ? "Charge card" : "Charge"}</Button>
               </div>
-              <p className="text-xs text-gray-500">
-                Up to {dollars(job.fee_cents)} comes out of the hold and the rest is released. A larger bill sends the balance as a PayPal link with Pay Later.
-              </p>
+              {card ? (
+                <label className="flex items-start gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-brand-600" />
+                  <span>The customer approved this amount on site.</span>
+                </label>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Up to {dollars(job.fee_cents)} comes out of the hold and the rest is released. A larger bill sends the balance as a PayPal link with Pay Later.
+                </p>
+              )}
+              {card && <p className="text-xs text-gray-500">Charges the card on file in full. PayPal emails the customer a receipt.</p>}
             </form>
             <div className="grid grid-cols-2 gap-2">
               <Button type="button" variant="secondary" onClick={() => void act("cancel")} disabled={busy !== null}>
                 {busy === "cancel" ? "Working…" : "Customer cancelled"}
               </Button>
               <Button type="button" variant="secondary" onClick={() => void act("release")} disabled={busy !== null}>
-                {busy === "release" ? "Working…" : "Release hold"}
+                {busy === "release" ? "Working…" : card ? "Remove card" : "Release hold"}
               </Button>
             </div>
           </div>
@@ -288,11 +305,12 @@ function JobPanel({ job, onChanged }: { job: Job | null; onChanged: () => Promis
             </li>
           ))}
         </ol>
-        {(job.order_id || job.authorization_id) && (
+        {(job.order_id || job.authorization_id || job.vault_id) && (
           <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg bg-gray-50 p-3 font-mono text-[11px] text-gray-500">
             {job.order_id && (<><dt>PayPal order</dt><dd className="truncate">{job.order_id}</dd></>)}
             {job.authorization_id && (<><dt>Authorization</dt><dd className="truncate">{job.authorization_id}</dd></>)}
-            {job.balance_order_id && (<><dt>Balance order</dt><dd className="truncate">{job.balance_order_id}</dd></>)}
+            {job.vault_id && (<><dt>Vault token</dt><dd className="truncate">{job.vault_id}</dd></>)}
+            {job.balance_order_id && (<><dt>{card ? "Charge order" : "Balance order"}</dt><dd className="truncate">{job.balance_order_id}</dd></>)}
             {job.authorization_expires && (<><dt>Hold valid to</dt><dd>{new Date(job.authorization_expires).toLocaleDateString()}</dd></>)}
           </dl>
         )}

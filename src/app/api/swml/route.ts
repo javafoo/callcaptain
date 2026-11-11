@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   if (job) {
     job = await updateJob(job.id, { call_id: callId }, event("agent", "Agent answered"));
   } else {
-    job = await createJob("phone", b.serviceCallCents, callId);
+    job = await createJob("phone", b.serviceCallCents, callId, b.secureWith);
     if (body.call?.from) job = await updateJob(job.id, { callback_phone: body.call.from });
   }
 
