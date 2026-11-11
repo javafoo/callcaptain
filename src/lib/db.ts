@@ -80,6 +80,8 @@ export type Job = {
   vault_id: string | null;
   vault_type: string | null;
   summary: Record<string, unknown> | null;
+  /** Created by "Load a sample night" (real sandbox payments, labeled in the UI, no alerts). */
+  sample: boolean;
   events: JobEvent[];
 };
 
@@ -142,6 +144,7 @@ export function ensureSchema(): Promise<void> {
       "approved_at timestamptz",
       "approval_evidence jsonb",
       "completed_at timestamptz",
+      "sample boolean NOT NULL DEFAULT false",
     ]) {
       await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ${column}`);
     }
@@ -196,6 +199,7 @@ const COLUMNS = new Set([
   "vault_id",
   "vault_type",
   "summary",
+  "sample",
 ]);
 
 export type JobPatch = Partial<Omit<Job, "id" | "created_at" | "updated_at" | "events">>;

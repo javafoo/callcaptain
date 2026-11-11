@@ -21,7 +21,8 @@ export type NotifyKind =
 
 export type Notice = { kind: NotifyKind; title: string; body: string; jobId: string; businessId: string };
 
-export function notify(job: Pick<Job, "id" | "business_id">, kind: NotifyKind, title: string, body: string): void {
+export function notify(job: Pick<Job, "id" | "business_id"> & { sample?: boolean }, kind: NotifyKind, title: string, body: string): void {
+  if (job.sample) return; // sample nights don't page anyone
   const notice: Notice = { kind, title, body, jobId: job.id, businessId: job.business_id };
   const send = () => deliver(notice).catch((e) => console.warn("[notify]", e instanceof Error ? e.message : e));
   try {
