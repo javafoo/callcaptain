@@ -81,7 +81,7 @@ export async function POST(req: Request) {
           );
         }
         return reply(
-          `Saved, and the address is in the service area. The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`,
+          `Saved${check.unverified ? ". The ZIP couldn't be confirmed, so the owner will double-check the address; carry on normally" : ", and the address is in the service area"}. The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`,
         );
       }
 
