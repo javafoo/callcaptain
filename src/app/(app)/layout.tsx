@@ -1,7 +1,20 @@
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Notifier } from "@/components/notifier";
 import { Sidebar } from "@/components/sidebar";
 import { currentBusiness } from "@/lib/workspace";
+
+/** The owner app installs to the Home Screen (src/app/manifest.ts), where iPhone allows alerts. */
+export const metadata: Metadata = {
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Call Captain", statusBarStyle: "black" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  // Brand ink navy, the color of the app's header.
+  themeColor: "#0d1f33",
+};
 
 async function Shell() {
   const { business } = await currentBusiness();

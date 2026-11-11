@@ -1,11 +1,9 @@
-import { Card, CardHeader } from "./ui";
+import { listDevices, vapidPublicKey } from "@/lib/push";
+import { DEMO_WS } from "@/lib/workspace-id";
+import { PhoneAlerts } from "./phone-alerts";
 
 /** Go live → alerts on the owner's (and technician's) phone. */
-export function GoLiveNotifications({ workspace }: { workspace: string | null }) {
-  void workspace;
-  return (
-    <Card>
-      <CardHeader title="Get alerts on your phone" subtitle="New emergencies, holds placed, dispatches and payments." />
-    </Card>
-  );
+export async function GoLiveNotifications({ workspace }: { workspace: string | null }) {
+  const devices = workspace ? await listDevices(workspace).catch(() => []) : [];
+  return <PhoneAlerts workspace={workspace} demo={workspace === DEMO_WS} publicKey={vapidPublicKey()} initialDevices={devices} />;
 }
