@@ -25,7 +25,7 @@ export class PayPalError extends Error {
 
 let cached: { token: string; expiresAt: number } | null = null;
 
-async function accessToken(): Promise<string> {
+export async function accessToken(): Promise<string> {
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
   const { clientId, secret, base } = env.paypal;
   const res = await fetch(`${base}/v1/oauth2/token`, {
@@ -43,7 +43,8 @@ async function accessToken(): Promise<string> {
   return cached.token;
 }
 
-async function pp<T>(path: string, init: { method?: string; body?: unknown; idempotencyKey?: string } = {}): Promise<T> {
+/** Any PayPal REST call (sandbox), with auth, idempotency key and typed errors. */
+export async function pp<T>(path: string, init: { method?: string; body?: unknown; idempotencyKey?: string } = {}): Promise<T> {
   const res = await fetch(`${env.paypal.base}${path}`, {
     method: init.method ?? "GET",
     headers: {
@@ -71,13 +72,19 @@ async function pp<T>(path: string, init: { method?: string; body?: unknown; idem
 
 const usd = (cents: number) => ({ currency_code: "USD", value: (cents / 100).toFixed(2) });
 
-type Authorization = { id: string; status: string; expiration_time?: string; amount?: { value: string } };
-type Order = {
+export type Authorization = { id: string; status: string; expiration_time?: string; amount?: { value: string } };
+export type Order = {
   id: string;
   status: string;
+  intent?: string;
   links?: { rel: string; href: string }[];
+  payer?: { email_address?: string; name?: { given_name?: string; surname?: string } };
   payment_source?: { card?: { last_digits?: string; brand?: string }; paypal?: { email_address?: string }; venmo?: { email_address?: string } };
-  purchase_units?: { payments?: { authorizations?: Authorization[]; captures?: { id: string; status: string }[] } }[];
+  purchase_units?: {
+    reference_id?: string;
+    custom_id?: string;
+    payments?: { authorizations?: Authorization[]; captures?: { id: string; status: string; amount?: { value: string } }[] };
+  }[];
 };
 
 /** Step 1 (browser path): an order the caller approves in the PayPal popup. Nothing is held until authorizeOrder(). */
@@ -191,7 +198,7 @@ export async function captureOrder(orderId: string): Promise<Order> {
   return pp<Order>(`/v2/checkout/orders/${orderId}/capture`, { method: "POST", body: {}, idempotencyKey: `capture-${orderId}` });
 }
 
-/** What a judge sees next to each PayPal id in the dashboard. */
+/** How a payment method reads in the dashboard and the ledger. */
 export function payerLabel(order: Order): string {
   const s = order.payment_source;
   if (s?.card?.last_digits) return `${s.card.brand ?? "Card"} •••• ${s.card.last_digits}`;
@@ -233,7 +240,9 @@ type PaymentToken = {
 };
 
 /** Step 2: the caller approved. Turn the setup token into a saved payment method. */
-export async function createPaymentToken(setupTokenId: string): Promise<{ id: string; type: VaultKind; label: string; last4: string | null }> {
+export async function createPaymentToken(
+  setupTokenId: string,
+): Promise<{ id: string; type: VaultKind; label: string; last4: string | null; email: string | null }> {
   const t = await pp<PaymentToken>("/v3/vault/payment-tokens", {
     method: "POST",
     idempotencyKey: `pt-${setupTokenId}`,
@@ -242,10 +251,16 @@ export async function createPaymentToken(setupTokenId: string): Promise<{ id: st
   const s = t.payment_source ?? {};
   if (s.card) {
     const brand = s.card.brand ? s.card.brand.charAt(0) + s.card.brand.slice(1).toLowerCase() : "Card";
-    return { id: t.id, type: "card", label: `${brand} •••• ${s.card.last_digits ?? ""}`.trim(), last4: s.card.last_digits ?? null };
+    return { id: t.id, type: "card", label: `${brand} •••• ${s.card.last_digits ?? ""}`.trim(), last4: s.card.last_digits ?? null, email: null };
   }
-  if (s.venmo) return { id: t.id, type: "venmo", label: "Venmo", last4: null };
-  return { id: t.id, type: "paypal", label: s.paypal?.email_address ? `PayPal (${s.paypal.email_address})` : "PayPal", last4: null };
+  if (s.venmo) return { id: t.id, type: "venmo", label: "Venmo", last4: null, email: s.venmo.email_address ?? null };
+  return {
+    id: t.id,
+    type: "paypal",
+    label: s.paypal?.email_address ? `PayPal (${s.paypal.email_address})` : "PayPal",
+    last4: null,
+    email: s.paypal?.email_address ?? null,
+  };
 }
 
 /** Step 3: charge the saved method, with the customer not present (merchant-initiated). */

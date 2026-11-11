@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { buildSwml } from "@/lib/agent";
 import { createJob, getJob, updateJob, event, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
-import { getBusiness } from "@/lib/settings";
+import { getBusiness, workspaceForCaller } from "@/lib/settings";
+import { DEMO_WS } from "@/lib/workspace-id";
 
 /**
  * SignalWire fetches the call script here when a call starts (SWML webhook resource,
  * https://signalwire.com/docs/swml/guides/remote-server). Browser calls carry our job id
- * in the call's user variables; phone calls get a fresh job.
+ * in the call's user variables; phone calls get a fresh job in the workspace of whoever
+ * registered the caller's number (Go live → Test from your phone), else the demo business.
  */
 
 function findJobId(value: unknown, depth = 0): string | null {
@@ -25,7 +27,6 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { call?: { call_id?: string; from?: string }; vars?: { pay_result?: string } };
   const callId = body.call?.call_id ?? null;
   const params = new URL(req.url).searchParams;
-  const b = await getBusiness();
 
   // Back from the secure keypad hand-off: same call, same job, a fresh AI session.
   if (params.get("resume") === "1") {
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
       const raw = params.get("pay_result");
       const payResult = body.vars?.pay_result ?? (raw && !raw.includes("$") ? raw : null);
       const back = await updateJob(job.id, { pay_step: null }, event("agent", `Back from the secure keypad (${payResult ?? "no result"})`));
-      return NextResponse.json(buildSwml(back, b, originOf(req), env.webhookSecret, { payResult }));
+      return NextResponse.json(buildSwml(back, await getBusiness(back.business_id), originOf(req), env.webhookSecret, { payResult }));
     }
   }
 
@@ -45,9 +46,11 @@ export async function POST(req: Request) {
   if (job) {
     job = await updateJob(job.id, { call_id: callId }, event("agent", "Agent answered"));
   } else {
-    job = await createJob("phone", b.serviceCallCents, callId, b.secureWith);
+    const workspace = (await workspaceForCaller(body.call?.from)) ?? DEMO_WS;
+    const b = await getBusiness(workspace);
+    job = await createJob(workspace, "phone", b.serviceCallCents, callId, b.secureWith);
     if (body.call?.from) job = await updateJob(job.id, { callback_phone: body.call.from });
   }
 
-  return NextResponse.json(buildSwml(job, b, originOf(req), env.webhookSecret));
+  return NextResponse.json(buildSwml(job, await getBusiness(job.business_id), originOf(req), env.webhookSecret));
 }

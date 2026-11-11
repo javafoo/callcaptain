@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   if (number.length < 12 || !body.expiry_month || !body.expiry_year) return fail(400, "invalid_card", "Card details are incomplete");
 
   try {
-    const { authorizationId } = await holdKeypadCard(job, await getBusiness(), {
+    const { authorizationId } = await holdKeypadCard(job, await getBusiness(job.business_id), {
       number,
       expiryMonth: body.expiry_month,
       expiryYear: body.expiry_year,

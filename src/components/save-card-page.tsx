@@ -27,7 +27,7 @@ export function SaveCardPage({ job: initial, businessName, clientId }: { job: Jo
         )}
       </div>
       <div className="flex items-center justify-center gap-1.5 border-t border-gray-100 bg-gray-50 px-6 py-3 text-xs text-gray-500">
-        <Icon name="shield" className="h-3.5 w-3.5" /> Secured by PayPal · sandbox demo
+        <Icon name="shield" className="h-3.5 w-3.5" /> Secured by PayPal · test mode
       </div>
     </div>
   );

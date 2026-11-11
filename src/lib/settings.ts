@@ -1,13 +1,13 @@
 import { neon } from "@neondatabase/serverless";
 import { DEFAULT_BUSINESS, LANGUAGE_OPTIONS, type Business, type County } from "./business";
+import { toE164 } from "./phone";
 import { VOICES } from "./voices";
 
 /**
- * One row per business. The demo has a single business, "demo", that anyone can edit from
- * the Agent setup page (and reset to the defaults).
+ * One row per workspace (see ./workspace.ts). A workspace without a row runs on the demo
+ * defaults (Harbor Plumbing & Heating) until its owner saves the Agent setup.
  */
 
-const ID = "demo";
 let ready: Promise<void> | null = null;
 
 function sql() {
@@ -26,10 +26,19 @@ function ensure() {
   return ready;
 }
 
-export async function getBusiness(): Promise<Business> {
+export async function getBusiness(workspace: string): Promise<Business> {
   await ensure();
-  const rows = (await sql().query(`SELECT data FROM businesses WHERE id = $1`, [ID])) as { data: Partial<Business> }[];
+  const rows = (await sql().query(`SELECT data FROM businesses WHERE id = $1`, [workspace])) as { data: Partial<Business> }[];
   return { ...DEFAULT_BUSINESS, ...(rows[0]?.data ?? {}) };
+}
+
+/** A call to the phone line from one of an owner's registered phones lands in their workspace. */
+export async function workspaceForCaller(phone: string | null | undefined): Promise<string | null> {
+  const e164 = toE164(phone);
+  if (!e164) return null;
+  await ensure();
+  const rows = (await sql().query(`SELECT id FROM businesses WHERE data->'testPhones' ? $1 ORDER BY updated_at DESC LIMIT 1`, [e164])) as { id: string }[];
+  return rows[0]?.id ?? null;
 }
 
 const clean = (v: unknown, max: number, fallback: string) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : fallback);
@@ -38,6 +47,11 @@ const cents = (v: unknown, fallback: number, max: number) => {
   return Number.isFinite(n) && n > 0 && n <= max ? n : fallback;
 };
 
+/** A saved business in the shape the setup form sends, so partial updates can go through sanitize(). */
+export function toInput(b: Business): Record<string, unknown> {
+  return { ...b, serviceCallDollars: b.serviceCallCents / 100, tripFeeDollars: b.tripFeeCents / 100 };
+}
+
 /** Validate whatever the form sent; anything odd falls back to the default. */
 export function sanitize(input: Record<string, unknown>): Business {
   const d = DEFAULT_BUSINESS;
@@ -45,6 +59,7 @@ export function sanitize(input: Record<string, unknown>): Business {
   const zips = Array.isArray(input.serviceZips) ? input.serviceZips : String(input.serviceZips ?? "").split(/[\s,]+/);
   const langs = Array.isArray(input.languages) ? input.languages.map(String) : d.languages;
   const known = new Set<string>(LANGUAGE_OPTIONS.map((l) => l.code));
+  const phones = Array.isArray(input.testPhones) ? input.testPhones : [];
   return {
     businessName: clean(input.businessName, 60, d.businessName),
     agentName: clean(input.agentName, 20, d.agentName),
@@ -63,6 +78,12 @@ export function sanitize(input: Record<string, unknown>): Business {
     websiteUrl: typeof input.websiteUrl === "string" ? input.websiteUrl.trim().slice(0, 200) : "",
     knowledge: typeof input.knowledge === "string" ? input.knowledge.trim().slice(0, 3000) : "",
     technician: clean(input.technician, 30, d.technician),
+    technicianPhone: toE164(typeof input.technicianPhone === "string" ? input.technicianPhone : "") ?? "",
+    testPhones: phones
+      .map((p) => toE164(String(p)))
+      .filter((p): p is string => Boolean(p))
+      .filter((p, i, all) => all.indexOf(p) === i)
+      .slice(0, 5),
     eta: clean(input.eta, 40, d.eta),
     morningSlot: clean(input.morningSlot, 60, d.morningSlot),
     languages: langs.filter((c) => known.has(c)).length ? langs.filter((c) => known.has(c)) : ["en"],
@@ -70,15 +91,17 @@ export function sanitize(input: Record<string, unknown>): Business {
   };
 }
 
-export async function saveBusiness(b: Business): Promise<Business> {
+export async function saveBusiness(workspace: string, b: Business): Promise<Business> {
   await ensure();
   await sql().query(
     `INSERT INTO businesses (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
-    [ID, JSON.stringify(b)],
+    [workspace, JSON.stringify(b)],
   );
   return b;
 }
 
-export async function resetBusiness(): Promise<Business> {
-  return saveBusiness(DEFAULT_BUSINESS);
+/** Back to the demo business. The owner's phone numbers stay. */
+export async function resetBusiness(workspace: string): Promise<Business> {
+  const prev = await getBusiness(workspace);
+  return saveBusiness(workspace, { ...DEFAULT_BUSINESS, technicianPhone: prev.technicianPhone, testPhones: prev.testPhones });
 }

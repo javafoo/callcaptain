@@ -20,7 +20,8 @@ type SwCall = {
   status$: { subscribe: (fn: (status: string) => void) => Subscription };
 };
 
-export function useCall() {
+/** businessId: the website widget's business (from the embed snippet). The app itself uses the visitor's workspace. */
+export function useCall(businessId?: string) {
   const [phase, setPhase] = useState<CallPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -51,7 +52,11 @@ export function useCall() {
       const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
       probe.getTracks().forEach((t) => t.stop());
 
-      const res = await fetch("/api/calls/start", { method: "POST" });
+      const res = await fetch("/api/calls/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(businessId ? { business: businessId } : {}),
+      });
       const body = (await res.json().catch(() => ({}))) as { jobId?: string; token?: string; destination?: string; error?: string };
       if (!res.ok || !body.token || !body.destination || !body.jobId) throw new Error(body.error ?? "The line is busy. Please try again in a minute.");
       setJobId(body.jobId);
@@ -88,7 +93,7 @@ export function useCall() {
       setPhase("error");
       cleanup();
     }
-  }, [cleanup]);
+  }, [cleanup, businessId]);
 
   const sendDigit = useCallback(async (digit: string) => {
     await callRef.current?.sendDigits(digit).catch(() => {});

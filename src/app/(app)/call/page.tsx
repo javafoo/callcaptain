@@ -3,12 +3,23 @@ import { CallDemo } from "@/components/call-demo";
 import { Card, Icon, PageHeader } from "@/components/ui";
 import { env } from "@/lib/env";
 import { dollars } from "@/lib/format";
-import { getBusiness } from "@/lib/settings";
+import { formatPhone, phoneLine } from "@/lib/phone";
+import { currentBusiness } from "@/lib/workspace";
 
 async function LiveCall() {
-  const b = await getBusiness();
+  const { business: b } = await currentBusiness();
+  const line = phoneLine();
   return (
     <>
+      {line && (
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-white px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200">
+          <Icon name="phone" className="h-4 w-4 text-brand-600" />
+          Prefer a real phone? Call <a href={`tel:${line}`} className="font-semibold text-gray-900">{formatPhone(line)}</a>.
+          <span className="text-gray-500">
+            Add your number under <a href="/go-live" className="font-medium text-brand-700 hover:underline">Go live</a> first so the call shows up in your Jobs.
+          </span>
+        </p>
+      )}
       <CallDemo
         paypalClientId={process.env.PAYPAL_CLIENT_ID ?? ""}
         liveCalls={env.signalwireReady}

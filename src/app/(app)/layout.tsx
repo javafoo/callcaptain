@@ -1,10 +1,11 @@
 import { Suspense } from "react";
+import { Notifier } from "@/components/notifier";
 import { Sidebar } from "@/components/sidebar";
-import { getBusiness } from "@/lib/settings";
+import { currentBusiness } from "@/lib/workspace";
 
 async function Shell() {
-  const b = await getBusiness();
-  return <Sidebar businessName={b.businessName} />;
+  const { business } = await currentBusiness();
+  return <Sidebar businessName={business.businessName} />;
 }
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -16,10 +17,11 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       <div className="lg:pl-60">
         <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
         <footer className="mx-auto flex max-w-[1400px] flex-col gap-1 px-4 pb-8 text-xs text-gray-400 sm:flex-row sm:justify-between sm:px-6 lg:px-8">
-          <span>PayPal sandbox only. No real money moves. The business in this demo is fictional.</span>
+          <span>Test mode: payments run on PayPal&apos;s sandbox, so no real money moves.</span>
           <a href="https://github.com/javafoo/callcaptain" className="hover:text-gray-600">Open source · MIT · GitHub</a>
         </footer>
       </div>
+      <Notifier />
     </div>
   );
 }

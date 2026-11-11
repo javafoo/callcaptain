@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { event, getJob, updateJob } from "@/lib/db";
 import { hasWebhookKey } from "@/lib/env";
+import { notify } from "@/lib/notify";
 
 /**
  * End-of-call report (https://signalwire.com/docs/apis/rest/webhooks/ai-post-prompt-callback).
@@ -32,10 +33,18 @@ export async function POST(req: Request) {
   const handingOff = job.hold_method === "keypad" && job.status === "awaiting_hold" && job.pay_step !== null;
   // Hung up before anything was secured or booked: close the job instead of leaving it "on the call".
   const unfinished = !handingOff && ["on_call", "awaiting_hold", "awaiting_card"].includes(job.status);
-  await updateJob(
+  const updated = await updateJob(
     job.id,
     { summary, ...(unfinished ? { status: "ended" as const } : {}) },
     ...(handingOff ? [] : [event("call_ended", unfinished ? "Call ended before a visit was secured. AI wrote a summary." : "Call ended. AI wrote the technician's ticket.")]),
   );
+  if (unfinished && (updated.customer_name || updated.issue || updated.callback_phone)) {
+    notify(
+      updated,
+      "follow_up",
+      `Call back · ${updated.customer_name ?? "a caller"}`,
+      [updated.issue, updated.callback_phone ? `Callback ${updated.callback_phone}` : null, "Hung up before the visit was secured."].filter(Boolean).join(" · "),
+    );
+  }
   return NextResponse.json({});
 }

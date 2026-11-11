@@ -1,22 +1,34 @@
 import { NextResponse } from "next/server";
 import { areaToCounties } from "@/lib/ai";
 import { countyKey, type County } from "@/lib/business";
-import { getBusiness, resetBusiness, sanitize, saveBusiness } from "@/lib/settings";
+import { getBusiness, resetBusiness, sanitize, saveBusiness, toInput } from "@/lib/settings";
+import { canEdit, currentWorkspace } from "@/lib/workspace";
 
 export const maxDuration = 60;
 
 const sameCounties = (a: County[], b: County[]) => a.map(countyKey).sort().join(";") === b.map(countyKey).sort().join(";");
 
-/** Agent setup page. Demo settings, so open; the next call picks them up. */
+/** The visitor's Agent setup. The next call picks it up. */
 export async function GET() {
-  return NextResponse.json({ business: await getBusiness() }, { headers: { "Cache-Control": "no-store" } });
+  const workspace = await currentWorkspace();
+  if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 401 });
+  return NextResponse.json(
+    { business: await getBusiness(workspace), workspace, editable: await canEdit(workspace) },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
+/** Save the Agent setup. Fields left out keep their saved values, so a page can update just its part. */
 export async function PUT(req: Request) {
+  const workspace = await currentWorkspace();
+  if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 401 });
+  if (!(await canEdit(workspace))) {
+    return NextResponse.json({ error: "This is the public demo line's business. Open your own workspace to change settings." }, { status: 403 });
+  }
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  if (body.reset === true) return NextResponse.json({ business: await resetBusiness() });
-  const next = sanitize(body);
-  const prev = await getBusiness();
+  if (body.reset === true) return NextResponse.json({ business: await resetBusiness(workspace) });
+  const prev = await getBusiness(workspace);
+  const next = sanitize({ ...toInput(prev), ...body });
 
   // Safety net: the area sentence changed but the counties didn't (a website import, or a new area
   // typed without clicking "Map area"). Calls are checked against the counties, so re-map them
@@ -33,5 +45,7 @@ export async function PUT(req: Request) {
       console.error("[settings] auto-map failed", e instanceof Error ? e.message : e);
     }
   }
-  return NextResponse.json({ business: await saveBusiness(remapped ? sanitize(next) : next), remapped });
+  return NextResponse.json({ business: await saveBusiness(workspace, remapped ? sanitize(toInput(next)) : next), remapped });
 }
+
+export const PATCH = PUT;

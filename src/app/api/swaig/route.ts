@@ -5,6 +5,7 @@ import { zipFrom } from "@/lib/business";
 import { dollars, event, findJobByCall, getJob, updateJob, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
 import { SECURED, bookMorning, cancelVisit, dispatchTechnician, requestCardOnFile, requestPayPalHold } from "@/lib/money";
+import { notify } from "@/lib/notify";
 import { getBusiness } from "@/lib/settings";
 
 /**
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
   let job: Job | null = await getJob(jobId);
   if (!job && body.call_id) job = await findJobByCall(body.call_id);
   if (!job) return reply("The job record is missing. Apologize and ask the caller to call back.");
-  const b = await getBusiness();
+  const b = await getBusiness(job.business_id);
 
   const outOfArea = () =>
     reply(`This address is outside ${b.businessName}'s service area (${b.serviceAreaText}), so you cannot send anyone or take a hold. Apologize kindly and suggest they call a local company.`);
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
         if (check.noSuchZip && !askAgain) check = { inArea: true, place: null, unverified: true };
         const area = check.inArea;
         const where = check.place ? `${check.place.city}, ${check.place.state} (${check.place.county})` : null;
+        const firstDetails = !job.customer_name && !job.issue;
         job = await updateJob(
           job.id,
           {
@@ -68,6 +70,14 @@ export async function POST(req: Request) {
           ...(askAgain ? [event("zip_unknown", `ZIP ${zip} doesn't exist. Asked the caller to repeat it.`)] : []),
           ...(check.unverified ? [event("area_unverified", `Couldn't verify ZIP ${zip}. Accepted; check the address before the visit.`)] : []),
         );
+        if (firstDetails) {
+          notify(
+            job,
+            "new_call",
+            `New ${job.urgency === "emergency" ? "emergency" : "call"} · ${job.customer_name ?? "Caller"}${area === false ? " (outside your area)" : ""}`,
+            [job.issue, job.service_address].filter(Boolean).join(" · "),
+          );
+        }
         if (askAgain) {
           return reply(
             `ZIP code ${zip} doesn't exist, so it was probably misheard. Say you didn't quite catch the ZIP code and ask them to say it again slowly, then call save_job_details again.`,

@@ -12,8 +12,9 @@ export const metadata = { title: "Your invoice" };
 /** What the homeowner opens from the text: the repair balance, payable with PayPal, Venmo, card or Pay Later. */
 async function Invoice({ params }: { params: PageProps<"/pay/[id]">["params"] }) {
   const { id } = await params;
-  const [job, b] = await Promise.all([getJob(id), getBusiness()]);
+  const job = await getJob(id);
   if (!job) notFound();
+  const b = await getBusiness(job.business_id);
   // Card on file requested: the same secure PayPal form the call screen shows.
   if (job.status === "awaiting_card" || (job.status === "card_saved" && !job.final_cents)) {
     return <SaveCardPage job={job} businessName={b.businessName} clientId={process.env.PAYPAL_CLIENT_ID ?? ""} />;
@@ -75,7 +76,7 @@ async function Invoice({ params }: { params: PageProps<"/pay/[id]">["params"] })
         </div>
       </div>
       <div className="flex items-center justify-center gap-1.5 border-t border-gray-100 bg-gray-50 px-6 py-3 text-xs text-gray-500">
-        <Icon name="shield" className="h-3.5 w-3.5" /> Payments secured by PayPal · sandbox demo
+        <Icon name="shield" className="h-3.5 w-3.5" /> Payments secured by PayPal · test mode
       </div>
     </div>
   );

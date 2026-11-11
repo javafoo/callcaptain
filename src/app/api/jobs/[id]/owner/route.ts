@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { getJob } from "@/lib/db";
 import { cancelVisit, completeJob, releaseHold } from "@/lib/money";
 import { getBusiness } from "@/lib/settings";
+import { canEdit, currentWorkspace } from "@/lib/workspace";
 
 /**
- * The owner's buttons in the dashboard:
+ * The owner's buttons in the dashboard (only for jobs in the owner's own workspace):
  *   complete { finalDollars, approved } → hold: capture (and send a balance link if larger);
  *                                         card on file: charge the approved final bill to the saved card
  *   release                   → void the hold, nothing charged
@@ -12,10 +13,11 @@ import { getBusiness } from "@/lib/settings";
  */
 export async function POST(req: Request, ctx: RouteContext<"/api/jobs/[id]/owner">) {
   const { id } = await ctx.params;
-  const job = await getJob(id);
-  if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const [job, workspace] = await Promise.all([getJob(id), currentWorkspace()]);
+  if (!job || !workspace || job.business_id !== workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await canEdit(workspace))) return NextResponse.json({ error: "The public demo line is read-only. Open your own workspace to manage jobs." }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as { action?: string; finalDollars?: number | string; approved?: boolean };
-  const b = await getBusiness();
+  const b = await getBusiness(job.business_id);
   try {
     switch (body.action) {
       case "complete": {

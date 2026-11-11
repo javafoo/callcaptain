@@ -46,6 +46,10 @@ export type Business = {
   websiteUrl: string;
   knowledge: string;
   technician: string;
+  /** The on-call technician's cell (E.164). When a visit is secured, Ava phones it to dispatch. "" = no call. */
+  technicianPhone: string;
+  /** The owner's own phones (E.164). Calls from these numbers to the phone line land in this workspace. */
+  testPhones: string[];
   eta: string;
   morningSlot: string;
   languages: string[];
@@ -66,6 +70,8 @@ export const DEFAULT_BUSINESS: Business = {
   websiteUrl: "",
   knowledge: "",
   technician: "Marcus",
+  technicianPhone: "",
+  testPhones: [],
   eta: "35 to 45 minutes",
   morningSlot: "tomorrow between 7 and 9 AM",
   languages: ["en", "es"],

@@ -1,8 +1,9 @@
 /*
  * Call Captain website widget. Paste one line into any website:
  *
- *   <script src="https://callcaptain.vercel.app/embed.js" async></script>
+ *   <script src="https://callcaptain.vercel.app/embed.js" data-business="ws_..." async></script>
  *
+ * data-business is your workspace id (Go live in the app shows your exact line).
  * Optional: data-label="Plumbing emergency? Talk to us now", data-color="#039855".
  * Adds a floating button; clicking it opens the call panel (an iframe of /widget) where the
  * visitor talks to the AI dispatcher and approves the PayPal hold. Closing the panel hangs up.
@@ -15,6 +16,7 @@
   var origin = new URL(script.src, location.href).origin;
   var label = (script && script.getAttribute("data-label")) || "Emergency? Talk to us now";
   var color = (script && script.getAttribute("data-color")) || "#039855";
+  var business = (script && script.getAttribute("data-business")) || "";
 
   var style = document.createElement("style");
   style.textContent =
@@ -50,7 +52,7 @@
     x.textContent = "×";
     x.onclick = close;
     var frame = document.createElement("iframe");
-    frame.src = origin + "/widget";
+    frame.src = origin + "/widget" + (business ? "?b=" + encodeURIComponent(business) : "");
     frame.allow = "microphone; payment; clipboard-write";
     frame.title = "Talk to our dispatcher";
     panel.appendChild(x);

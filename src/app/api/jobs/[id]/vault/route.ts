@@ -20,7 +20,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/jobs/[id]/vault
     if (body.action === "setup") {
       if (job.status !== "awaiting_card") return NextResponse.json({ error: "Nothing to save right now." }, { status: 409 });
       const kind: VaultKind = body.kind === "paypal" || body.kind === "venmo" ? body.kind : "card";
-      const b = await getBusiness();
+      const b = await getBusiness(job.business_id);
       return NextResponse.json({ setupToken: await createSetupToken(kind, job.id, `${originOf(req)}/pay/${job.id}`, b.businessName) });
     }
     if (body.action === "confirm" && body.setupToken) {

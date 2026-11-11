@@ -1,4 +1,6 @@
 import Script from "next/script";
+import { Suspense } from "react";
+import { currentWorkspace } from "@/lib/workspace";
 
 export const metadata = { title: "Harbor Plumbing & Heating · San Jose plumbers (demo site)" };
 
@@ -96,8 +98,15 @@ export default function DemoSite() {
 
       <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500">© Harbor Plumbing &amp; Heating (fictional) · San Jose, CA</footer>
 
-      {/* The one line a contractor pastes into their site. */}
-      <Script src="/embed.js" data-label="Plumbing emergency? Talk to us now" strategy="afterInteractive" />
+      {/* The one line a contractor pastes into their site, pointed at this visitor's own workspace. */}
+      <Suspense>
+        <Embed />
+      </Suspense>
     </div>
   );
+}
+
+async function Embed() {
+  const workspace = await currentWorkspace();
+  return <Script src="/embed.js" data-business={workspace ?? undefined} data-label="Plumbing emergency? Talk to us now" strategy="afterInteractive" />;
 }

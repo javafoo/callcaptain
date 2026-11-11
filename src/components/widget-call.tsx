@@ -13,8 +13,20 @@ import { useCall } from "./use-call";
  * The call panel a contractor's website opens through /embed.js: talk to the dispatcher,
  * approve the PayPal hold, see confirmation. Built for a 380 x 640 frame.
  */
-export function WidgetCall({ paypalClientId, liveCalls, businessName, agentName }: { paypalClientId: string; liveCalls: boolean; businessName: string; agentName: string }) {
-  const { phase, error, jobId, liveAt, start, hangUp, sendDigit, audioRef } = useCall();
+export function WidgetCall({
+  paypalClientId,
+  liveCalls,
+  businessId,
+  businessName,
+  agentName,
+}: {
+  paypalClientId: string;
+  liveCalls: boolean;
+  businessId: string;
+  businessName: string;
+  agentName: string;
+}) {
+  const { phase, error, jobId, liveAt, start, hangUp, sendDigit, audioRef } = useCall(businessId);
   const [job, setJob] = useState<Job | null>(null);
   const [now, setNow] = useState(0);
   const [keypadFallback, setKeypadFallback] = useState(false);
@@ -152,7 +164,7 @@ export function WidgetCall({ paypalClientId, liveCalls, businessName, agentName 
             {phase === "live" ? `Hang up · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : phase === "connecting" ? "Connecting…" : phase === "ended" ? "Call again" : "Call now"}
           </button>
           {phase === "error" && <p className="mt-2 text-center text-xs text-red-600">{error}</p>}
-          <p className="mt-2 text-center text-[11px] text-gray-400">Uses your microphone · Powered by Call Captain · PayPal sandbox</p>
+          <p className="mt-2 text-center text-[11px] text-gray-400">Uses your microphone · Powered by Call Captain · PayPal test mode</p>
         </div>
       </div>
       <audio ref={audioRef} autoPlay className="hidden" />

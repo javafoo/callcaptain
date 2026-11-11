@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { SetupForm } from "@/components/setup-form";
 import { PageHeader } from "@/components/ui";
-import { getBusiness } from "@/lib/settings";
+import { currentBusiness } from "@/lib/workspace";
 
 export const metadata = { title: "Agent setup · Call Captain" };
 
 async function Form() {
-  return <SetupForm initial={await getBusiness()} />;
+  const { business, editable } = await currentBusiness();
+  return <SetupForm initial={business} editable={editable} />;
 }
 
 export default function SetupPage() {

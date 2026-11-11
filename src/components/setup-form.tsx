@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGUAGE_OPTIONS, shortName, type Business, type County } from "@/lib/business";
 import { dollars } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import { VOICES } from "@/lib/voices";
 import { Button, Card, CardHeader, Field, Icon, cx, inputClass } from "./ui";
 
@@ -20,6 +21,7 @@ type Form = {
   websiteUrl: string;
   knowledge: string;
   technician: string;
+  technicianPhone: string;
   eta: string;
   morningSlot: string;
   languages: string[];
@@ -40,16 +42,18 @@ const toForm = (b: Business): Form => ({
   websiteUrl: b.websiteUrl,
   knowledge: b.knowledge,
   technician: b.technician,
+  technicianPhone: b.technicianPhone ? formatPhone(b.technicianPhone) : "",
   eta: b.eta,
   morningSlot: b.morningSlot,
   languages: b.languages,
   instructions: b.instructions,
 });
 
-export function SetupForm({ initial }: { initial: Business }) {
+export function SetupForm({ initial, editable }: { initial: Business; editable: boolean }) {
   const [form, setForm] = useState<Form>(() => toForm(initial));
   const [saved, setSaved] = useState<Form>(() => toForm(initial));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const [importUrl, setImportUrl] = useState(initial.websiteUrl || "");
@@ -59,13 +63,11 @@ export function SetupForm({ initial }: { initial: Business }) {
   const [areaNote, setAreaNote] = useState<string | null>(null);
   // The area sentence the county chips were mapped from. If the sentence changes without a re-map, warn.
   const [mappedFor, setMappedFor] = useState(initial.serviceAreaText);
-  const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState("https://callcaptain.vercel.app");
   useEffect(() => {
     const t = setTimeout(() => setOrigin(window.location.origin), 0);
     return () => clearTimeout(t);
   }, []);
-  const snippet = `<script src="${origin}/embed.js" async></script>`;
 
   const importSite = async () => {
     setImporting(true);
@@ -138,7 +140,12 @@ export function SetupForm({ initial }: { initial: Business }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(reset ? { reset: true } : { ...form, serviceZips: form.serviceZips }),
     });
-    if (!res.ok) return setStatus("error");
+    if (!res.ok) {
+      const out = (await res.json().catch(() => ({}))) as { error?: string };
+      setSaveError(out.error ?? null);
+      return setStatus("error");
+    }
+    setSaveError(null);
     const out = (await res.json()) as { business: Business; remapped?: boolean };
     const next = toForm(out.business);
     setMappedFor(next.serviceAreaText);
@@ -160,6 +167,11 @@ export function SetupForm({ initial }: { initial: Business }) {
       }}
     >
       <div className="space-y-6">
+        {!editable && (
+          <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
+            This is the business behind the public demo phone line, so it&apos;s read-only. Open the app in a new browser to get your own workspace.
+          </p>
+        )}
         <Card className="border-brand-200 bg-gradient-to-br from-brand-50/70 to-white">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end">
             <div className="flex-1">
@@ -367,6 +379,17 @@ export function SetupForm({ initial }: { initial: Business }) {
             <Field label="On-call technician">
               <input className={inputClass} value={form.technician} onChange={(e) => set("technician", e.target.value)} />
             </Field>
+            <Field label="Technician's cell" hint="When a visit is secured, the agent phones this number to brief the tech, who accepts by voice. Leave empty to skip the call.">
+              <input
+                className={inputClass}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={form.technicianPhone}
+                onChange={(e) => set("technicianPhone", e.target.value)}
+                placeholder="(408) 555-0199"
+              />
+            </Field>
             <Field label="Arrival window">
               <input className={inputClass} value={form.eta} onChange={(e) => set("eta", e.target.value)} />
             </Field>
@@ -402,31 +425,14 @@ export function SetupForm({ initial }: { initial: Business }) {
           </div>
         </Card>
 
-        <Card>
-          <CardHeader
-            title="Add to your website"
-            subtitle="Paste this one line before </body>. Visitors get a button to talk to your agent and approve the hold, right on your site."
-            action={
-              <a href="/site" target="_blank" className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-brand-700 hover:text-brand-600">
-                See it live <Icon name="external" className="h-3.5 w-3.5" />
-              </a>
-            }
-          />
-          <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
-            <code className="flex-1 overflow-x-auto whitespace-nowrap rounded-lg bg-ink-900 px-4 py-3 font-mono text-xs text-brand-100">{snippet}</code>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                void navigator.clipboard.writeText(snippet).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
-              }}
-            >
-              {copied ? "Copied" : "Copy code"}
-            </Button>
+        <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[15px] font-semibold text-gray-900">Ready for real calls?</p>
+            <p className="mt-0.5 text-sm text-gray-500">Forward your after-hours line to the agent, add the call button to your website, and get alerts on your phone.</p>
           </div>
+          <a href="/go-live" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-ink-900 px-3.5 py-2 text-sm font-semibold text-white hover:bg-ink-800">
+            Go live <Icon name="external" className="h-3.5 w-3.5" />
+          </a>
         </Card>
       </div>
 
@@ -451,21 +457,24 @@ export function SetupForm({ initial }: { initial: Business }) {
                 Speaks {LANGUAGE_OPTIONS.filter((l) => form.languages.includes(l.code)).map((l) => l.label).join(", ") || "English"}
               </li>
               <li className="flex gap-2">
-                <Icon name="truck" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" /> Sends {form.technician || "your tech"}, {form.eta}
+                <Icon name="truck" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                {form.technicianPhone.replace(/\D/g, "").length >= 10
+                  ? `Phones ${form.technician || "your tech"} to dispatch, ${form.eta}`
+                  : `Sends ${form.technician || "your tech"}, ${form.eta}`}
               </li>
             </ul>
           </div>
         </Card>
         <Card className="p-4">
           <div className="flex flex-col gap-2">
-            <Button type="submit" disabled={!dirty || status === "saving"}>
+            <Button type="submit" disabled={!editable || !dirty || status === "saving"}>
               {status === "saving" ? "Saving…" : "Save changes"}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => void submit(true)} disabled={status === "saving"}>
+            <Button type="button" variant="ghost" onClick={() => void submit(true)} disabled={!editable || status === "saving"}>
               Reset to the demo business
             </Button>
             <p className={cx("text-center text-xs", status === "error" ? "text-red-600" : "text-gray-500")}>
-              {status === "saved" && !dirty ? "Saved. Your next call uses these settings." : status === "error" ? "Couldn't save. Try again." : dirty ? "You have unsaved changes." : "Changes apply to the next call."}
+              {status === "saved" && !dirty ? "Saved. Your next call uses these settings." : status === "error" ? (saveError ?? "Couldn't save. Try again.") : dirty ? "You have unsaved changes." : "Changes apply to the next call."}
             </p>
           </div>
         </Card>

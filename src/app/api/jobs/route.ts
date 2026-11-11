@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { listJobs } from "@/lib/db";
+import { currentWorkspace } from "@/lib/workspace";
 
-/** Owner dashboard feed. Sandbox demo data only, so it is open for judges. */
+/** The owner's jobs feed: this workspace's calls, newest first. */
 export async function GET() {
-  const jobs = await listJobs(200);
+  const workspace = await currentWorkspace();
+  const jobs = workspace ? await listJobs(workspace, 200) : [];
   return NextResponse.json({ jobs }, { headers: { "Cache-Control": "no-store" } });
 }
