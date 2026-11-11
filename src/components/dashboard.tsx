@@ -8,8 +8,10 @@ import { DAY_MS, plural } from "./grid-format";
 import { buildRows, cardOnFile, heldCents, wasSecured, type JobRow } from "./grid-jobs";
 import { movedCents } from "./grid-ledger";
 import { Glyph, StatTile } from "./grid-toolbar";
+import { GettingStarted } from "./getting-started";
 import { JobPanel } from "./job-panel";
 import { JobsGrid } from "./jobs-grid";
+import { OvernightBriefing } from "./overnight-briefing";
 
 /** The owner's command center: what the night looked like, every job live, and the selected job's money actions. */
 
@@ -144,8 +146,13 @@ export function Dashboard({ initialJobId }: { initialJobId: string | null }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, select]);
 
+  // The briefing only needs to change when a call arrives or a job changes state, not on every live update.
+  const nightKey = data.loaded ? data.rows.map((j) => `${j.id}:${j.status}:${j.tech_status ?? ""}`).join("|") : "";
+
   return (
     <div className="flex flex-col gap-6">
+      {data.loaded && <GettingStarted jobs={data.rows} />}
+      {data.loaded && data.rows.length > 0 && <OvernightBriefing changeKey={nightKey} />}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {stats.map((s) => (
           <StatTile key={s.label} label={s.label} value={s.value} note={s.note} icon={s.icon} tone={s.tone} loading={!data.loaded} />

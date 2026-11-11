@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { Business } from "@/lib/business";
 import type { Job } from "@/lib/db";
-import { SampleNightButton } from "./sample-night";
 import { Card, Icon, cx } from "./ui";
 
 /**
@@ -16,7 +15,7 @@ type Settings = { business: Business; saved: boolean };
 
 const DISMISS_KEY = "cc:getting-started-dismissed";
 
-export function GettingStarted({ jobs, onChange }: { jobs: Job[]; onChange: () => void | Promise<void> }) {
+export function GettingStarted({ jobs }: { jobs: Job[] }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [dismissed, setDismissed] = useState(true);
 
@@ -36,7 +35,6 @@ export function GettingStarted({ jobs, onChange }: { jobs: Job[]; onChange: () =
   }, []);
 
   const real = jobs.filter((j) => !j.sample);
-  const hasSamples = jobs.some((j) => j.sample);
   const steps = [
     {
       title: "Make the agent yours",
@@ -113,12 +111,6 @@ export function GettingStarted({ jobs, onChange }: { jobs: Job[]; onChange: () =
           </li>
         ))}
       </ol>
-      {real.length === 0 && (
-        <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-600">No microphone handy? Load last night&apos;s sample calls, run through real PayPal test transactions.</p>
-          <SampleNightButton loaded={hasSamples} onChange={onChange} />
-        </div>
-      )}
     </Card>
   );
 }

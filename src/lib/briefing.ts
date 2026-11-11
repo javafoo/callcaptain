@@ -80,7 +80,9 @@ function factsOf(jobs: Job[]): Facts {
 }
 
 const schema = z.object({
-  headline: z.string().describe("One plain sentence, under 20 words, that sums up the night for the owner. No label or prefix."),
+  headline: z
+    .string()
+    .describe('One plain sentence, under 20 words, with the night\'s key numbers, like "7 calls overnight: 5 visits secured with PayPal and $497 collected." No label or prefix.'),
   points: z.array(z.string()).describe("2 to 4 short sentences an owner skims on a phone: money secured, jobs in progress, anything unusual"),
   callbacks: z
     .array(z.object({ jobId: z.string(), why: z.string().describe("Why and when to call, one short sentence") }))

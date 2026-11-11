@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Briefing } from "@/lib/briefing";
 import { dollars } from "@/lib/format";
 import { Card, Icon } from "./ui";
@@ -21,9 +21,12 @@ export function OvernightBriefing({ changeKey }: { changeKey: string }) {
     setState(body.briefing ? "ready" : "empty");
   }, []);
 
+  // Load once, then refresh only after the night's jobs have been quiet for 30 seconds,
+  // so a live call doesn't regenerate the summary on every step.
+  const first = useRef(true);
   useEffect(() => {
-    // Wait for the jobs to settle for a moment so a live call doesn't regenerate it every few seconds.
-    const t = setTimeout(load, changeKey ? 1500 : 0);
+    const t = setTimeout(load, first.current ? 0 : 30_000);
+    first.current = false;
     return () => clearTimeout(t);
   }, [changeKey, load]);
 
