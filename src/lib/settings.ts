@@ -84,6 +84,7 @@ export function sanitize(input: Record<string, unknown>): Business {
       .filter((p): p is string => Boolean(p))
       .filter((p, i, all) => all.indexOf(p) === i)
       .slice(0, 5),
+    baseZip: /^\d{5}$/.test(String(input.baseZip ?? "").trim()) ? String(input.baseZip).trim() : "",
     eta: clean(input.eta, 40, d.eta),
     morningSlot: clean(input.morningSlot, 60, d.morningSlot),
     languages: langs.filter((c) => known.has(c)).length ? langs.filter((c) => known.has(c)) : ["en"],
