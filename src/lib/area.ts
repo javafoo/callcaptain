@@ -11,10 +11,13 @@ import { countyKey, hasAreaRules, zipListed, type Business } from "./business";
  *
  * If a lookup fails, the answer is "unverified": the call goes ahead and the job is flagged,
  * because turning away a real emergency over a flaky lookup is worse than a manual check.
+ * A ZIP that doesn't exist at all (usually misheard) is different: the agent asks again.
  */
 
 export type Place = { zip: string; city: string; state: string; county: string };
-export type AreaCheck = { inArea: boolean | null; place: Place | null; unverified?: boolean };
+export type AreaCheck = { inArea: boolean | null; place: Place | null; unverified?: boolean; noSuchZip?: boolean };
+/** The ZIP lookup answered, and that ZIP doesn't exist. */
+export const NO_SUCH_ZIP = "no-such-zip" as const;
 
 let ready: Promise<void> | null = null;
 function sql() {
@@ -32,26 +35,29 @@ function ensure() {
   return ready;
 }
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+async function fetchJson<T>(url: string): Promise<T | null | 404> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(3000), cache: "no-store" });
+    if (res.status === 404) return 404;
     return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
   }
 }
 
-export async function lookupZip(zip: string): Promise<Place | null> {
+export async function lookupZip(zip: string): Promise<Place | typeof NO_SUCH_ZIP | null> {
   await ensure();
   const cached = (await sql().query(`SELECT zip, city, state, county FROM zip_places WHERE zip = $1`, [zip])) as Place[];
   if (cached[0]) return cached[0];
 
   type Zippo = { places?: { "place name": string; "state abbreviation": string; latitude: string; longitude: string }[] };
   const z = await fetchJson<Zippo>(`https://api.zippopotam.us/us/${zip}`);
+  if (z === 404) return NO_SUCH_ZIP;
   const p = z?.places?.[0];
   if (!p) return null;
   type Fcc = { results?: { county_name?: string; state_code?: string }[] };
-  const f = await fetchJson<Fcc>(`https://geo.fcc.gov/api/census/area?lat=${p.latitude}&lon=${p.longitude}&format=json`);
+  const fr = await fetchJson<Fcc>(`https://geo.fcc.gov/api/census/area?lat=${p.latitude}&lon=${p.longitude}&format=json`);
+  const f = fr === 404 ? null : fr;
   const county = f?.results?.[0]?.county_name;
   if (!county) return null;
 
@@ -63,10 +69,11 @@ export async function lookupZip(zip: string): Promise<Place | null> {
 export async function checkArea(b: Business, zip: string | null): Promise<AreaCheck> {
   if (!hasAreaRules(b)) return { inArea: true, place: null };
   if (!zip) return { inArea: null, place: null };
-  if (zipListed(b, zip)) return { inArea: true, place: await lookupZip(zip).catch(() => null) };
-  if (b.serviceCounties.length === 0) return { inArea: false, place: await lookupZip(zip).catch(() => null) };
-
-  const place = await lookupZip(zip).catch(() => null);
+  const found = await lookupZip(zip).catch(() => null);
+  if (found === NO_SUCH_ZIP) return { inArea: null, place: null, noSuchZip: true };
+  const place = found;
+  if (zipListed(b, zip)) return { inArea: true, place };
+  if (b.serviceCounties.length === 0) return { inArea: false, place };
   if (!place) return { inArea: true, place: null, unverified: true };
   const key = countyKey({ county: place.county, state: place.state });
   return { inArea: b.serviceCounties.some((c) => countyKey(c) === key), place };

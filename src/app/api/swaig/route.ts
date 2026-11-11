@@ -45,7 +45,11 @@ export async function POST(req: Request) {
       case "save_job_details": {
         const str = (k: string) => (typeof args[k] === "string" && (args[k] as string).trim() ? (args[k] as string).trim() : null);
         const zip = zipFrom(str("zip_code")) ?? zipFrom(str("service_address"));
-        const check = await checkArea(b, zip);
+        let check = await checkArea(b, zip);
+        // Not a real ZIP: usually misheard, so ask once more. Same ZIP twice: don't trap a real
+        // emergency, go ahead and flag it for the owner to check.
+        const askAgain = Boolean(check.noSuchZip && job.zip !== zip);
+        if (check.noSuchZip && !askAgain) check = { inArea: true, place: null, unverified: true };
         const area = check.inArea;
         const where = check.place ? `${check.place.city}, ${check.place.state} (${check.place.county})` : null;
         job = await updateJob(
@@ -62,8 +66,14 @@ export async function POST(req: Request) {
           event("details", `${str("customer_name") ?? "Caller"} at ${str("service_address") ?? "unknown address"}${zip ? ` ${zip}` : ""}: ${str("issue") ?? ""}`),
           ...(area === false ? [event("out_of_area", `${where ?? `ZIP ${zip}`} is outside the service area (${b.serviceAreaText}). No hold, no dispatch.`)] : []),
           ...(area === true && where ? [event("in_area", `${where} is inside the service area.`)] : []),
-          ...(check.unverified ? [event("area_unverified", `Couldn't look up ZIP ${zip}. Accepted; check the address before the visit.`)] : []),
+          ...(askAgain ? [event("zip_unknown", `ZIP ${zip} doesn't exist. Asked the caller to repeat it.`)] : []),
+          ...(check.unverified ? [event("area_unverified", `Couldn't verify ZIP ${zip}. Accepted; check the address before the visit.`)] : []),
         );
+        if (askAgain) {
+          return reply(
+            `ZIP code ${zip} doesn't exist, so it was probably misheard. Say you didn't quite catch the ZIP code and ask them to say it again slowly, then call save_job_details again.`,
+          );
+        }
         if (area === null) return reply("Saved, but I still need the five-digit ZIP code to check the service area. Ask for it, then call save_job_details again.");
         if (area === false) {
           return reply(
