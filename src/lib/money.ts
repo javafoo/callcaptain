@@ -617,9 +617,12 @@ export async function cancelVisit(job: Job, b: Business): Promise<{ job: Job; me
 }
 
 async function applyCancellation(job: Job, b: Business): Promise<{ job: Job; message: string }> {
+  // While the agent is still phoning the technician, nobody has headed out yet, so no trip fee.
+  const rolling = job.status === "dispatched" && job.tech_status !== "calling";
+  const stillCallingTech = job.status === "dispatched" && job.tech_status === "calling";
   if (onFile(job)) {
     // Waiting on the final bill means the technician came out, unless he was never dispatched.
-    const sent = job.status === "dispatched" || (job.status === "awaiting_approval" && Boolean(job.tech_name));
+    const sent = rolling || (job.status === "awaiting_approval" && Boolean(job.tech_name));
     if (sent) {
       const charge = await chargeSaved(vaultOf(job), b.tripFeeCents, job.id, `${b.businessName}: trip fee (cancelled after dispatch)`, `trip-${job.id}`);
       await deletePaymentToken(job.vault_id!).catch(() => {});
@@ -640,11 +643,11 @@ async function applyCancellation(job: Job, b: Business): Promise<{ job: Job; mes
       });
       return { job: updated, message: `Cancelled. The technician was already on the way, so the ${dollars(b.tripFeeCents)} trip fee was charged to the card on file.` };
     }
-    if (job.status === "card_saved" || job.status === "awaiting_approval") {
+    if (job.status === "card_saved" || job.status === "awaiting_approval" || stillCallingTech) {
       return { job: await releaseHold(job, "Caller cancelled before dispatch."), message: "Cancelled. Nothing was charged and the card was removed." };
     }
   }
-  if (job.status === "dispatched" && job.authorization_id) {
+  if (rolling && job.authorization_id) {
     const capture = await captureAuthorization(job.authorization_id, b.tripFeeCents, `job-${job.id}-trip`);
     const updated = await updateJob(
       job.id,
@@ -662,7 +665,7 @@ async function applyCancellation(job: Job, b: Business): Promise<{ job: Job; mes
     });
     return { job: updated, message: `Cancelled. The technician was already on the way, so the ${dollars(b.tripFeeCents)} trip fee was charged and the rest of the hold released.` };
   }
-  if (job.status === "hold_placed" && job.authorization_id) {
+  if ((job.status === "hold_placed" || stillCallingTech) && job.authorization_id) {
     return { job: await releaseHold(job, "Caller cancelled before dispatch."), message: "Cancelled. The hold was released and nothing was charged." };
   }
   const updated = await updateJob(job.id, { status: "released" }, event("cancelled", "Caller cancelled. No hold existed."));

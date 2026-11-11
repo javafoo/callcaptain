@@ -21,8 +21,8 @@ export async function POST(req: Request) {
   }
   if (!turn?.content || (turn.role !== "user" && turn.role !== "assistant")) return NextResponse.json({ ok: true });
 
-  // The payment system's injected notice is a "user" turn in SignalWire's log; it isn't the caller.
-  if (turn.role === "user" && turn.content.startsWith("(Notice from the payment system")) return NextResponse.json({ ok: true });
+  // Notices we inject (payment system, dispatch system) are "user" turns in SignalWire's log; they aren't the caller.
+  if (turn.role === "user" && turn.content.startsWith("(Notice from the ")) return NextResponse.json({ ok: true });
 
   // The post_prompt's JSON ticket also arrives as an assistant turn; it belongs in the ticket, not the transcript.
   if (turn.role === "assistant" && /^\s*(```|\{)/.test(turn.content)) return NextResponse.json({ ok: true });

@@ -1,4 +1,4 @@
-import { client, ensureSchema, type Job } from "./db";
+import { client, columnExists, ensureSchema, type Job } from "./db";
 
 /**
  * The payments ledger: one row per PayPal money movement (hold placed, captured or released,
@@ -40,6 +40,7 @@ let ready: Promise<void> | null = null;
 function ensureLedger(): Promise<void> {
   ready ??= (async () => {
     await ensureSchema();
+    if (await columnExists("payments", "note")) return;
     const sql = client();
     await sql.query(`
       CREATE TABLE IF NOT EXISTS payments (

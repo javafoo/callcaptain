@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { columnExists } from "./db";
 import { countyKey, hasAreaRules, zipListed, type Business } from "./business";
 
 /**
@@ -26,6 +27,7 @@ function sql() {
 }
 function ensure() {
   ready ??= (async () => {
+    if (await columnExists("zip_places", "lon")) return;
     await sql().query(`CREATE TABLE IF NOT EXISTS zip_places (zip text PRIMARY KEY, city text, state text, county text, looked_up_at timestamptz NOT NULL DEFAULT now())`);
     // ZIP centers, for arrival estimates (./eta.ts).
     await sql().query(`ALTER TABLE zip_places ADD COLUMN IF NOT EXISTS lat double precision`);
@@ -82,7 +84,10 @@ export async function lookupZip(zip: string): Promise<Place | typeof NO_SUCH_ZIP
 export async function checkArea(b: Business, zip: string | null): Promise<AreaCheck> {
   if (!hasAreaRules(b)) return { inArea: true, place: null };
   if (!zip) return { inArea: null, place: null };
-  const found = await lookupZip(zip).catch(() => null);
+  const found = await lookupZip(zip).catch((e) => {
+    console.warn("[area] ZIP lookup failed", zip, e instanceof Error ? e.message : e);
+    return null;
+  });
   if (found === NO_SUCH_ZIP) return { inArea: null, place: null, noSuchZip: true };
   const place = found;
   if (zipListed(b, zip)) return { inArea: true, place };

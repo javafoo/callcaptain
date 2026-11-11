@@ -94,8 +94,19 @@ export function client() {
 
 let ready: Promise<void> | null = null;
 
+/** True once a column exists. Migrations check their newest column first, so a warm database runs no DDL. */
+export async function columnExists(table: string, column: string): Promise<boolean> {
+  const rows = (await client().query(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2`,
+    [table, column],
+  )) as unknown[];
+  return rows.length > 0;
+}
+
 export function ensureSchema(): Promise<void> {
   ready ??= (async () => {
+    // Already migrated (the newest column exists): skip all DDL, so concurrent cold starts never collide.
+    if (await columnExists("jobs", "sample")) return;
     const sql = client();
     await sql.query(`
       CREATE TABLE IF NOT EXISTS jobs (
