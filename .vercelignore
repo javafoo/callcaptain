@@ -1,0 +1,5 @@
+# Never upload agent worktrees, local env files or build caches.
+.claude/
+.env*
+!.env.example
+*.tsbuildinfo
