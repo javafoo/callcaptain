@@ -1,4 +1,4 @@
-import { client, ensureSchema, event, getJob, updateJob, type Job, type JobEvent } from "./db";
+import { client, ensureSchema, event, getJob, updateJob, type Job } from "./db";
 import { env } from "./env";
 import { dollars } from "./format";
 import { paymentsForJob, recordPayment, type PaymentInput, type PaymentKind } from "./ledger";
@@ -57,6 +57,33 @@ export function parseWebhookEvent(raw: string): PayPalWebhookEvent | null {
   } catch {
     return null;
   }
+}
+
+/** The PayPal app's webhooks by URL, and when we last asked PayPal for them. */
+let registered: { at: number; ids: Map<string, string> } | null = null;
+let asking: Promise<Map<string, string>> | null = null;
+const ASK_EVERY_MS = 60_000;
+
+/**
+ * The id of the webhook PayPal signs this deployment's events for: PAYPAL_WEBHOOK_ID when set,
+ * else the PayPal app's webhook for this exact URL (scripts/register-paypal-webhook.mjs registers
+ * it), so a deployment needs no extra env var. Kept in memory; a URL that isn't registered is
+ * looked up again at most once a minute. Null when PayPal has no webhook for the URL.
+ */
+export async function webhookIdFor(url: string): Promise<string | null> {
+  if (process.env.PAYPAL_WEBHOOK_ID) return process.env.PAYPAL_WEBHOOK_ID;
+  const known = registered?.ids.get(url);
+  if (known) return known;
+  if (registered && Date.now() - registered.at < ASK_EVERY_MS) return null;
+  asking ??= pp<{ webhooks?: { id: string; url: string }[] }>("/v1/notifications/webhooks")
+    .then(({ webhooks = [] }) => {
+      registered = { at: Date.now(), ids: new Map(webhooks.map((w) => [w.url, w.id])) };
+      return registered.ids;
+    })
+    .finally(() => {
+      asking = null;
+    });
+  return (await asking).get(url) ?? null;
 }
 
 const SIGNATURE_HEADERS = ["paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id", "paypal-transmission-sig", "paypal-transmission-time"];
@@ -323,16 +350,12 @@ async function captureCompleted({ job, r }: Moment): Promise<string> {
 
 /** What a capture paid for: the invoice_id money.ts gave it, else the authorization or order it came from. */
 function captureContext(job: Job, r: WebhookResource): { kind: PaymentKind; from: "hold" | "saved" | "order" } | null {
-  switch (r.invoice_id) {
-    case `job-${job.id}`:
-      return { kind: "hold_capture", from: "hold" };
-    case `job-${job.id}-trip`:
-      return { kind: "trip_fee", from: "hold" };
-    case `final-${job.id}`:
-      return { kind: "card_charge", from: "saved" };
-    case `trip-${job.id}`:
-      return { kind: "trip_fee", from: "saved" };
-  }
+  const invoice = r.invoice_id ?? "";
+  if (invoice === `job-${job.id}`) return { kind: "hold_capture", from: "hold" };
+  if (invoice === `job-${job.id}-trip`) return { kind: "trip_fee", from: "hold" };
+  if (invoice === `trip-${job.id}`) return { kind: "trip_fee", from: "saved" };
+  // The card-on-file final bill: final-<job>-<cents> (final-<job> before the bill carried its amount).
+  if (invoice === `final-${job.id}` || invoice.startsWith(`final-${job.id}-`)) return { kind: "card_charge", from: "saved" };
   const authorizationId = r.supplementary_data?.related_ids?.authorization_id ?? parentOf(r, "authorizations");
   if (authorizationId && authorizationId === job.authorization_id) return { kind: "hold_capture", from: "hold" };
   const orderId = orderOf(r);
@@ -344,8 +367,9 @@ type Returned = "refunded" | "reversed" | "denied";
 
 /**
  * PAYMENT.CAPTURE.REFUNDED / REVERSED / DENIED: money that went back to the customer (a refund, a
- * chargeback) or never arrived (a denied capture). Counted once: when the owner's refund button
- * already wrote it to the ledger, there's nothing left to do.
+ * chargeback) or never arrived (a denied capture). Same conventions as refundJob in money.ts, so
+ * the two never count a refund twice: the ledger row carries the refund id and the order of the
+ * payment it came out of, and the total moves only when this call wrote that row.
  */
 async function moneyReturned({ job, r, e }: Moment): Promise<string> {
   if (!r.id) return "no id";
@@ -362,14 +386,23 @@ async function moneyReturned({ job, r, e }: Moment): Promise<string> {
     status: how === "refunded" ? (r.status ?? "COMPLETED") : how.toUpperCase(),
     amountCents: back,
     paypalId: r.id,
-    orderId: charge?.paypal_order_id ?? orderOf(r) ?? null,
-    method: charge?.method ?? null,
+    // refundJob works out what's left on each payment from the refunds against its order.
+    orderId: charge ? charge.paypal_order_id : captureId ? await orderOfCapture(captureId) : null,
+    method: charge?.method ?? "PayPal",
     note: copy.note,
   });
   if (added === "present") return "nothing to do: already in the ledger";
-  const updated = await addRefund(job.id, back, event(how, copy.text));
-  notify(updated, "refunded", `${copy.title} · ${who(updated)}`, `${copy.body}${updated.status === "refunded" ? " Everything collected is now refunded." : ""}`);
+  const total = await addRefunded(job.id, back);
+  const full = total.captured_cents > 0 && total.refunded_cents >= total.captured_cents;
+  const updated = await updateJob(job.id, full ? { status: "refunded" } : {}, event(how, copy.text));
+  notify(updated, "refunded", `${copy.title} · ${who(updated)}`, `${copy.body}${full ? " Everything collected is now refunded." : ""}`);
   return `${how} ${dollars(back)}`;
+}
+
+/** The order a capture came from, asked of PayPal when the ledger doesn't have the capture. */
+async function orderOfCapture(captureId: string): Promise<string | null> {
+  const capture = await pp<WebhookResource>(`/v2/payments/captures/${captureId}`).catch(() => null);
+  return (capture && orderOf(capture)) ?? null;
 }
 
 /** Ledger note, timeline text and owner alert for money that went back. */
@@ -398,20 +431,13 @@ function returnedCopy(how: Returned, amount: string, id: string, method: string 
   };
 }
 
-/**
- * Adds to refunded_cents in one statement, so two refunds landing together both count. A job whose
- * money all went back reads "Refunded".
- */
-async function addRefund(jobId: string, amountCents: number, ev: JobEvent): Promise<Job> {
-  const [job] = (await client().query(
-    `UPDATE jobs SET
-       refunded_cents = refunded_cents + $1,
-       status = CASE WHEN status IN ('completed', 'paid', 'cancelled_fee') AND refunded_cents + $1 >= captured_cents THEN 'refunded' ELSE status END,
-       events = events || $2::jsonb,
-       updated_at = now()
-     WHERE id = $3 RETURNING *`,
-    [amountCents, JSON.stringify([ev]), jobId],
-  )) as Job[];
+/** Adds to the refunded total in one statement (as refundJob does), so a refund landing at the same moment isn't lost. */
+async function addRefunded(jobId: string, amountCents: number): Promise<Job> {
+  await ensureSchema();
+  const [job] = (await client().query(`UPDATE jobs SET refunded_cents = refunded_cents + $1, updated_at = now() WHERE id = $2 RETURNING *`, [
+    amountCents,
+    jobId,
+  ])) as Job[];
   if (!job) throw new Error(`Job ${jobId} not found`);
   return job;
 }

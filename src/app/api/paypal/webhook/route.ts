@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
-import { handlePayPalEvent, parseWebhookEvent, verifyWebhook } from "@/lib/paypal-webhooks";
+import { originOf } from "@/lib/env";
+import { handlePayPalEvent, parseWebhookEvent, verifyWebhook, webhookIdFor } from "@/lib/paypal-webhooks";
 
 /** The work after the response waits a few seconds for the browser, then calls PayPal. */
 export const maxDuration = 60;
@@ -10,8 +11,18 @@ export const maxDuration = 60;
  * alerts are brought up to date after the response (src/lib/paypal-webhooks.ts).
  */
 export async function POST(req: Request) {
-  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-  if (!webhookId) return NextResponse.json({ error: "PayPal webhooks aren't set up here (PAYPAL_WEBHOOK_ID)." }, { status: 503 });
+  const url = `${originOf(req)}/api/paypal/webhook`;
+  let webhookId: string | null;
+  try {
+    webhookId = await webhookIdFor(url);
+  } catch (e) {
+    console.warn("[paypal webhook] couldn't list the PayPal app's webhooks", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Couldn't reach PayPal." }, { status: 502 });
+  }
+  if (!webhookId) {
+    console.warn(`[paypal webhook] no PayPal webhook is registered for ${url}. Run scripts/register-paypal-webhook.mjs, or set PAYPAL_WEBHOOK_ID.`);
+    return NextResponse.json({ error: `No PayPal webhook is registered for ${url}.` }, { status: 503 });
+  }
 
   const raw = await req.text();
   const event = parseWebhookEvent(raw);

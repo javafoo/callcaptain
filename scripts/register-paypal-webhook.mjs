@@ -5,7 +5,8 @@
  *
  *   node --env-file=.env.local scripts/register-paypal-webhook.mjs https://your-app.vercel.app
  *
- * Then set PAYPAL_WEBHOOK_ID from the output (in .env.local and the deployment's environment) and redeploy.
+ * Nothing else to set: the app finds the webhook registered for its own URL. PAYPAL_WEBHOOK_ID
+ * (printed below) only overrides that lookup.
  * Docs: https://developer.paypal.com/docs/api/webhooks/v1/
  */
 const base = process.argv[2]?.replace(/\/+$/, "").replace(/\/api\/paypal\/webhook$/, "");
@@ -68,6 +69,7 @@ try {
   console.log(`Events: ${EVENT_TYPES.join(", ")}`);
   const others = webhooks.filter((w) => w.url !== url);
   if (others.length) console.log(`Other webhooks on this PayPal app: ${others.map((w) => `${w.id} → ${w.url}`).join(", ")}`);
+  console.log("The app finds this webhook by its URL. To pin it instead, set:");
   console.log(`PAYPAL_WEBHOOK_ID=${id}`);
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
