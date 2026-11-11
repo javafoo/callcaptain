@@ -1,4 +1,4 @@
-import { client, ensureSchema, event, getJob, updateJob, type Job } from "./db";
+import { client, columnExists, ensureSchema, event, getJob, updateJob, type Job } from "./db";
 import { env } from "./env";
 import { dollars } from "./format";
 import { paymentsForJob, recordPayment, type PaymentInput, type PaymentKind } from "./ledger";
@@ -118,6 +118,7 @@ let logReady: Promise<void> | null = null;
 
 function ensureEventLog(): Promise<void> {
   logReady ??= (async () => {
+    if (await columnExists("paypal_events", "received_at")) return; // already set up: no DDL on cold starts
     const sql = client();
     await sql.query(`
       CREATE TABLE IF NOT EXISTS paypal_events (
