@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { draftFromWebsite, publicUrl, readWebsite } from "@/lib/ai";
+import { areaToCounties, draftFromWebsite, publicUrl, readWebsite } from "@/lib/ai";
 
 export const maxDuration = 60;
 
@@ -11,7 +11,9 @@ export async function POST(req: Request) {
   try {
     const site = await readWebsite(start);
     const draft = await draftFromWebsite(site.text);
-    return NextResponse.json({ draft, pages: site.pages, websiteUrl: start.toString() });
+    // Map the site's service area to counties too, so the ZIP check matches what the site says.
+    const area = draft?.serviceAreaText ? await areaToCounties(draft.serviceAreaText).catch(() => null) : null;
+    return NextResponse.json({ draft, area, pages: site.pages, websiteUrl: start.toString() });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Couldn't read that website.";
     console.error("[settings/import]", message);

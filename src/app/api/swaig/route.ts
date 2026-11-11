@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         if (area === null) return reply("Saved, but I still need the five-digit ZIP code to check the service area. Ask for it, then call save_job_details again.");
         if (area === false) {
           return reply(
-            `${where ? `That address is in ${where}, which is` : "That address is"} outside ${b.businessName}'s service area: ${b.serviceAreaText}. You cannot send anyone or take a hold. Apologize kindly, tell them the area you do cover, and suggest a local company.`,
+            `${where ? `That address is in ${where}, which is` : "That address is"} outside ${b.businessName}'s service area: ${b.serviceAreaText}. You cannot send anyone or take a hold. Apologize kindly, tell them the area you do cover, and suggest a local company. Never guess or invent a reason why a place isn't covered. If they say it should be covered, take their callback number and tell them the owner will review it and call back in the morning.`,
           );
         }
         return reply(

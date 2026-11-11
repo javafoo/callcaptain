@@ -55,6 +55,8 @@ export function SetupForm({ initial }: { initial: Business }) {
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [mapping, setMapping] = useState(false);
   const [areaNote, setAreaNote] = useState<string | null>(null);
+  // The area sentence the county chips were mapped from. If the sentence changes without a re-map, warn.
+  const [mappedFor, setMappedFor] = useState(initial.serviceAreaText);
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState("https://callcaptain.vercel.app");
   useEffect(() => {
@@ -72,21 +74,26 @@ export function SetupForm({ initial }: { initial: Business }) {
       pages?: string[];
       websiteUrl?: string;
       draft?: { businessName: string | null; services: string | null; serviceAreaText: string | null; serviceCallDollars: number | null; instructions: string | null; knowledge: string };
+      area?: { counties: County[]; summary: string } | null;
     };
     setImporting(false);
     if (!res.ok || !body.draft) return setImportNote({ ok: false, text: body.error ?? "Couldn't read that website." });
     const d = body.draft;
+    const counties = body.area?.counties.length ? body.area.counties : null;
+    if (counties && d.serviceAreaText) setMappedFor(d.serviceAreaText);
+    setAreaNote(counties ? `Mapped your area to ${counties.length} ${counties.length === 1 ? "county" : "counties"}. Remove any you don't cover.` : null);
     setForm((f) => ({
       ...f,
       businessName: d.businessName ?? f.businessName,
       services: d.services ?? f.services,
       serviceAreaText: d.serviceAreaText ?? f.serviceAreaText,
+      serviceCounties: counties ?? f.serviceCounties,
       serviceCallDollars: d.serviceCallDollars ? String(d.serviceCallDollars) : f.serviceCallDollars,
       instructions: d.instructions ?? f.instructions,
       knowledge: d.knowledge || f.knowledge,
       websiteUrl: body.websiteUrl ?? f.websiteUrl,
     }));
-    setImportNote({ ok: true, text: `Read ${body.pages?.length ?? 1} page${body.pages?.length === 1 ? "" : "s"}. Review the fields below${d.serviceAreaText ? ", map your service area" : ""}, then save.` });
+    setImportNote({ ok: true, text: `Read ${body.pages?.length ?? 1} page${body.pages?.length === 1 ? "" : "s"}. Review the fields below${d.serviceAreaText && !counties ? ", map your service area" : ""}, then save.` });
   };
 
   const mapArea = async () => {
@@ -96,11 +103,14 @@ export function SetupForm({ initial }: { initial: Business }) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; counties?: County[]; summary?: string };
     setMapping(false);
     if (!res.ok || !body.counties) return setAreaNote(body.error ?? "Couldn't map that area.");
-    setForm((f) => ({ ...f, serviceCounties: body.counties!, serviceAreaText: body.summary || f.serviceAreaText }));
+    const text = body.summary || form.serviceAreaText;
+    setMappedFor(text);
+    setForm((f) => ({ ...f, serviceCounties: body.counties!, serviceAreaText: text }));
     setAreaNote(`Found ${body.counties.length} ${body.counties.length === 1 ? "county" : "counties"}. Remove any you don't cover, then save.`);
   };
 
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const areaStale = form.serviceAreaText.trim() !== "" && form.serviceAreaText !== mappedFor;
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => () => audio.current?.pause(), []);
@@ -127,7 +137,10 @@ export function SetupForm({ initial }: { initial: Business }) {
       body: JSON.stringify(reset ? { reset: true } : { ...form, serviceZips: form.serviceZips }),
     });
     if (!res.ok) return setStatus("error");
-    const next = toForm(((await res.json()) as { business: Business }).business);
+    const out = (await res.json()) as { business: Business; remapped?: boolean };
+    const next = toForm(out.business);
+    setMappedFor(next.serviceAreaText);
+    if (out.remapped) setAreaNote(`Your area text changed, so we re-mapped it to ${next.serviceCounties.length} ${next.serviceCounties.length === 1 ? "county" : "counties"}. Check them below.`);
     setForm(next);
     setSaved(next);
     setStatus("saved");
@@ -293,7 +306,13 @@ export function SetupForm({ initial }: { initial: Business }) {
                   </Button>
                 </div>
               </Field>
-              {areaNote && <p className="text-sm text-brand-700">{areaNote}</p>}
+              {areaStale ? (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">
+                  The counties below are from your old area. Click Map area, or Save and we&apos;ll map it for you.
+                </p>
+              ) : (
+                areaNote && <p className="text-sm text-brand-700">{areaNote}</p>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 {form.serviceCounties.length === 0 && <p className="text-xs text-gray-500">No counties yet. Click Map area.</p>}
                 {form.serviceCounties.map((c) => (

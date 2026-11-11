@@ -108,7 +108,7 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                   bullets: [
                     "Safety first. If water is still running, walk them to the shutoff: the valve on the cold pipe above the water heater, or the main shutoff where the water line enters the house. If water is near outlets or the electrical panel, tell them to stay out of the water. If they smell gas, tell them to leave the house now and call 911 and the gas company, and do not dispatch.",
                     "Get their first name, the street address with ZIP code, what happened, and a callback number. Then call save_job_details.",
-                    "If save_job_details says the address is outside the service area, apologize, explain you can't send anyone there, and suggest a local plumber. Do not offer a hold.",
+                    "If save_job_details says the address is outside the service area, apologize, explain you can't send anyone there, and suggest a local plumber. Do not offer a hold. Never invent a reason a place isn't covered; if the caller says it should be, take a callback number and say the owner will review it in the morning.",
                     `Explain the after-hours service call: it is ${fee}, and it goes toward the repair. To send someone tonight you place a hold for it now. Nothing is charged until the work is done, and if they cancel before the technician heads out the hold is simply released.`,
                     ...paymentStep,
                     "While you wait, stay with them and give one practical tip, like moving valuables off the floor or putting a bucket under the drip.",
