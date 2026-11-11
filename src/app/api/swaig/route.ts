@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { keypadPayAction } from "@/lib/agent";
-import { BUSINESS } from "@/lib/business";
+import { inServiceArea, zipFrom } from "@/lib/business";
 import { dollars, event, findJobByCall, getJob, updateJob, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
 import { bookMorning, cancelVisit, dispatchTechnician, requestPayPalHold } from "@/lib/money";
+import { getBusiness } from "@/lib/settings";
 
 /**
  * The agent's tools (SWAIG functions). SignalWire POSTs
  * { function, argument: { parsed: [args] }, call_id, global_data } and expects
  * { response, action? } (https://signalwire.com/docs/swml/reference/calling/ai/swaig).
+ *
+ * The rules that matter (service area, no dispatch without a hold) are enforced here,
+ * in code, whatever the model decides to try.
  */
 
 type SwaigRequest = {
@@ -19,6 +23,7 @@ type SwaigRequest = {
 };
 
 const reply = (response: string, action?: unknown[]) => NextResponse.json(action ? { response, action } : { response });
+const HELD = new Set(["hold_placed", "dispatched"]);
 
 export async function POST(req: Request) {
   if (!hasWebhookKey(req)) return new NextResponse("forbidden", { status: 403 });
@@ -29,40 +34,57 @@ export async function POST(req: Request) {
   let job: Job | null = await getJob(jobId);
   if (!job && body.call_id) job = await findJobByCall(body.call_id);
   if (!job) return reply("The job record is missing. Apologize and ask the caller to call back.");
+  const b = await getBusiness();
+
+  const outOfArea = () =>
+    reply(`This address is outside ${b.businessName}'s service area, so you cannot send anyone or take a hold. Apologize kindly and suggest they call a local company.`);
 
   try {
     switch (body.function) {
       case "save_job_details": {
         const str = (k: string) => (typeof args[k] === "string" && (args[k] as string).trim() ? (args[k] as string).trim() : null);
+        const zip = zipFrom(str("zip_code")) ?? zipFrom(str("service_address"));
+        const area = inServiceArea(b, zip);
         job = await updateJob(
           job.id,
           {
             customer_name: str("customer_name") ?? job.customer_name,
             service_address: str("service_address") ?? job.service_address,
+            zip: zip ?? job.zip,
             issue: str("issue") ?? job.issue,
             urgency: str("urgency") ?? job.urgency,
             callback_phone: str("callback_phone") ?? job.callback_phone,
+            ...(area === false ? { status: "out_of_area" as const } : {}),
           },
-          event("details", `${str("customer_name") ?? "Caller"} at ${str("service_address") ?? "unknown address"}: ${str("issue") ?? ""}`),
+          event("details", `${str("customer_name") ?? "Caller"} at ${str("service_address") ?? "unknown address"}${zip ? ` ${zip}` : ""}: ${str("issue") ?? ""}`),
+          ...(area === false ? [event("out_of_area", `ZIP ${zip} is outside the service area. No hold, no dispatch.`)] : []),
         );
+        if (area === null) return reply("Saved, but I still need the five-digit ZIP code to check the service area. Ask for it, then call save_job_details again.");
+        if (area === false) return outOfArea();
         return reply(
-          `Saved. The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(BUSINESS.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`,
+          `Saved, and the address is in the service area. The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`,
         );
       }
 
       case "start_paypal_hold": {
-        if (job.status === "hold_placed" || job.status === "dispatched") return reply("The hold is already placed. Dispatch the technician if you have not.");
-        job = await requestPayPalHold(job);
+        if (job.status === "out_of_area") return outOfArea();
+        if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
+        job = await requestPayPalHold(job, b);
         return reply(
-          `The PayPal button for the ${dollars(job.fee_cents)} hold is now on the caller's screen, under the call button. Ask them to tap it and approve with PayPal, Venmo or a card. You will get a notice the moment it is approved. Meanwhile, give one practical tip.`,
+          `The PayPal button for the ${dollars(job.fee_cents)} hold is now on the caller's screen. Ask them to tap it and approve with PayPal, Venmo or a card. You will get a notice the moment it is approved. Meanwhile, give one practical tip.`,
         );
       }
 
       case "take_card_on_keypad": {
-        if (job.status === "hold_placed" || job.status === "dispatched") return reply("The hold is already placed. Dispatch the technician if you have not.");
-        job = await updateJob(job.id, { status: "awaiting_hold", hold_method: "keypad" }, event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."));
-        return reply("Tell the caller you're handing them to a secure keypad for the card, and that you won't hear the numbers.", [
-          keypadPayAction(job, originOf(req), env.webhookSecret),
+        if (job.status === "out_of_area") return outOfArea();
+        if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
+        job = await updateJob(
+          job.id,
+          { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
+          event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."),
+        );
+        return reply("In one short sentence, tell the caller a secure keypad will now ask for the card one item at a time, and that you won't hear the numbers. Then stop talking.", [
+          keypadPayAction(job, b, originOf(req), env.webhookSecret),
         ]);
       }
 
@@ -73,22 +95,24 @@ export async function POST(req: Request) {
       }
 
       case "dispatch_technician": {
-        if (job.status !== "hold_placed" && job.status !== "dispatched") {
+        if (job.status === "out_of_area") return outOfArea();
+        if (!HELD.has(job.status)) {
           return reply("The hold is not approved yet, so you can't dispatch. Help them finish the hold, or offer the morning slot.");
         }
-        job = await dispatchTechnician(job);
+        job = await dispatchTechnician(job, b);
         return reply(
-          `${job.tech_name} is dispatched and will arrive in ${job.eta}. He'll quote the repair before starting any work. The final bill can be paid with PayPal, including Pay Later. Tell the caller, then ask if there's anything else.`,
+          `${job.tech_name} is dispatched and will arrive in ${job.eta}. The technician quotes the repair before starting any work. The final bill can be paid with PayPal, including Pay Later. Tell the caller, then ask if there's anything else.`,
         );
       }
 
       case "book_morning_slot": {
-        job = await bookMorning(job);
-        return reply(`Booked ${BUSINESS.morningSlot}, no hold needed. Confirm the time and remind them to keep the water shut off.`);
+        if (job.status === "out_of_area") return outOfArea();
+        job = await bookMorning(job, b);
+        return reply(`Booked ${b.morningSlot}, no hold needed. Confirm the time and remind them to keep the water shut off.`);
       }
 
       case "cancel_visit": {
-        const { message } = await cancelVisit(job);
+        const { message } = await cancelVisit(job, b);
         return reply(`${message} Tell the caller kindly.`);
       }
 

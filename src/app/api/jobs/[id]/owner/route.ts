@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getJob } from "@/lib/db";
 import { cancelVisit, completeJob, releaseHold } from "@/lib/money";
+import { getBusiness } from "@/lib/settings";
 
 /**
  * The owner's buttons in the dashboard:
@@ -13,16 +14,17 @@ export async function POST(req: Request, ctx: RouteContext<"/api/jobs/[id]/owner
   const job = await getJob(id);
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { action?: string; finalDollars?: number | string };
+  const b = await getBusiness();
   try {
     switch (body.action) {
       case "complete": {
         const cents = Math.round(Number(body.finalDollars) * 100);
-        return NextResponse.json({ job: await completeJob(job, cents) });
+        return NextResponse.json({ job: await completeJob(job, b, cents) });
       }
       case "release":
         return NextResponse.json({ job: await releaseHold(job, "Released by the owner.") });
       case "cancel":
-        return NextResponse.json({ job: (await cancelVisit(job)).job });
+        return NextResponse.json({ job: (await cancelVisit(job, b)).job });
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }

@@ -1,30 +1,39 @@
 export function dollars(cents: number | null | undefined): string {
   const n = (cents ?? 0) / 100;
-  return n % 1 === 0 ? `$${n.toFixed(0)}` : `$${n.toFixed(2)}`;
+  return n % 1 === 0
+    ? `$${n.toLocaleString("en-US")}`
+    : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export const STATUS_LABEL: Record<string, string> = {
   on_call: "On the call",
-  awaiting_hold: "Waiting for hold",
+  awaiting_hold: "Awaiting hold",
   hold_placed: "Hold placed",
-  dispatched: "Tech dispatched",
+  dispatched: "Dispatched",
   scheduled: "Booked for morning",
-  completed: "Paid, hold settled",
-  balance_due: "Balance link sent",
-  paid: "Fully paid",
-  released: "Released, $0 charged",
-  cancelled_fee: "Cancelled, trip fee",
+  completed: "Paid",
+  balance_due: "Balance due",
+  paid: "Paid in full",
+  released: "Released",
+  cancelled_fee: "Cancelled, fee kept",
+  out_of_area: "Out of area",
 };
 
-export const STATUS_TONE: Record<string, string> = {
-  on_call: "bg-sky-100 text-sky-800",
-  awaiting_hold: "bg-amber-100 text-amber-900",
-  hold_placed: "bg-indigo-100 text-indigo-800",
-  dispatched: "bg-blue-600 text-white",
-  scheduled: "bg-slate-200 text-slate-800",
-  completed: "bg-emerald-100 text-emerald-800",
-  balance_due: "bg-orange-100 text-orange-900",
-  paid: "bg-emerald-600 text-white",
-  released: "bg-slate-100 text-slate-700",
-  cancelled_fee: "bg-rose-100 text-rose-800",
+/** Pill colors: soft background, strong text, matching dot. */
+export const STATUS_TONE: Record<string, { pill: string; dot: string }> = {
+  on_call: { pill: "bg-sky-50 text-sky-700 ring-sky-200", dot: "bg-sky-500" },
+  awaiting_hold: { pill: "bg-amber-50 text-amber-800 ring-amber-200", dot: "bg-amber-500" },
+  hold_placed: { pill: "bg-indigo-50 text-indigo-700 ring-indigo-200", dot: "bg-indigo-500" },
+  dispatched: { pill: "bg-blue-50 text-blue-700 ring-blue-200", dot: "bg-blue-500" },
+  scheduled: { pill: "bg-gray-100 text-gray-700 ring-gray-200", dot: "bg-gray-400" },
+  completed: { pill: "bg-brand-50 text-brand-700 ring-brand-200", dot: "bg-brand-500" },
+  balance_due: { pill: "bg-orange-50 text-orange-700 ring-orange-200", dot: "bg-orange-500" },
+  paid: { pill: "bg-brand-50 text-brand-700 ring-brand-200", dot: "bg-brand-500" },
+  released: { pill: "bg-gray-100 text-gray-600 ring-gray-200", dot: "bg-gray-400" },
+  cancelled_fee: { pill: "bg-rose-50 text-rose-700 ring-rose-200", dot: "bg-rose-500" },
+  out_of_area: { pill: "bg-gray-100 text-gray-600 ring-gray-200", dot: "bg-gray-400" },
 };
+
+export function shortId(id: string) {
+  return `#${id.slice(0, 4).toUpperCase()}`;
+}

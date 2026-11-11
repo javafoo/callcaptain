@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createJob } from "@/lib/db";
 import { env } from "@/lib/env";
+import { getBusiness } from "@/lib/settings";
 import { createGuestToken } from "@/lib/signalwire";
 
 /**
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Too many calls from this connection. Please try again in a few minutes." }, { status: 429 });
   }
   try {
-    const job = await createJob("web");
+    const job = await createJob("web", (await getBusiness()).serviceCallCents);
     const { token, destination } = await createGuestToken();
     return NextResponse.json({ jobId: job.id, token, destination }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {

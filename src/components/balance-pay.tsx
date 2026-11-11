@@ -2,16 +2,25 @@
 
 import { useState } from "react";
 import { PayPalPay } from "./paypal-hold";
+import { Icon } from "./ui";
 
 export function BalancePay({ jobId, clientId, orderId, paid, balance }: { jobId: string; clientId: string; orderId: string | null; paid: boolean; balance: string }) {
   const [done, setDone] = useState(paid);
   if (done) {
-    return <div className="rounded-2xl bg-emerald-50 p-5 text-center text-emerald-900 ring-1 ring-emerald-200"><p className="text-lg font-semibold">Paid in full. Thank you!</p><p className="text-sm">A receipt is on its way from PayPal.</p></div>;
+    return (
+      <div className="flex items-center gap-3 rounded-xl bg-brand-50 p-4 text-brand-700 ring-1 ring-brand-200">
+        <Icon name="check" className="h-5 w-5" />
+        <div>
+          <p className="font-semibold">Paid in full. Thank you!</p>
+          <p className="text-sm text-gray-600">PayPal is emailing your receipt.</p>
+        </div>
+      </div>
+    );
   }
   if (!orderId) return null;
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-slate-600">Pay the {balance} balance with PayPal, Venmo or a card. On eligible amounts you can split it with PayPal Pay Later.</p>
+      <p className="text-sm text-gray-600">Pay the {balance} balance with PayPal, Venmo or a card. On eligible amounts you can split it into payments with PayPal Pay Later.</p>
       <PayPalPay
         clientId={clientId}
         orderId={orderId}

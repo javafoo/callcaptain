@@ -15,7 +15,8 @@ export type JobStatus =
   | "balance_due" // hold captured, balance sent as a PayPal link (Pay Later eligible)
   | "paid" // balance paid
   | "released" // hold voided, nothing charged
-  | "cancelled_fee"; // cancelled after dispatch, trip fee captured, rest released
+  | "cancelled_fee" // cancelled after dispatch, trip fee captured, rest released
+  | "out_of_area"; // address outside the owner's service area; nothing held
 
 export type HoldMethod = "paypal" | "keypad";
 
@@ -31,6 +32,7 @@ export type Job = {
   customer_name: string | null;
   callback_phone: string | null;
   service_address: string | null;
+  zip: string | null;
   issue: string | null;
   urgency: string | null;
   fee_cents: number;
@@ -39,6 +41,8 @@ export type Job = {
   authorization_id: string | null;
   authorization_expires: string | null;
   card_last4: string | null;
+  /** Which field SignalWire's secure keypad is collecting right now (pay status_url). */
+  pay_step: string | null;
   captured_cents: number;
   final_cents: number | null;
   balance_cents: number | null;
@@ -89,6 +93,8 @@ function ensureSchema(): Promise<void> {
         summary jsonb,
         events jsonb NOT NULL DEFAULT '[]'::jsonb
       )`);
+    await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS zip text`);
+    await sql.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pay_step text`);
     await sql.query(`CREATE INDEX IF NOT EXISTS jobs_call_id ON jobs (call_id)`);
     await sql.query(`CREATE INDEX IF NOT EXISTS jobs_created ON jobs (created_at DESC)`);
   })().catch((e) => {
@@ -105,6 +111,7 @@ const COLUMNS = new Set([
   "customer_name",
   "callback_phone",
   "service_address",
+  "zip",
   "issue",
   "urgency",
   "fee_cents",
@@ -113,6 +120,7 @@ const COLUMNS = new Set([
   "authorization_id",
   "authorization_expires",
   "card_last4",
+  "pay_step",
   "captured_cents",
   "final_cents",
   "balance_cents",
@@ -124,11 +132,11 @@ const COLUMNS = new Set([
 
 export type JobPatch = Partial<Omit<Job, "id" | "created_at" | "updated_at" | "events">>;
 
-export async function createJob(channel: Job["channel"], callId: string | null = null): Promise<Job> {
+export async function createJob(channel: Job["channel"], feeCents: number, callId: string | null = null): Promise<Job> {
   await ensureSchema();
   const rows = (await client().query(
-    `INSERT INTO jobs (channel, call_id, events) VALUES ($1, $2, $3::jsonb) RETURNING *`,
-    [channel, callId, JSON.stringify([event("call", channel === "web" ? "Browser call started" : "Phone call answered")])],
+    `INSERT INTO jobs (channel, fee_cents, call_id, events) VALUES ($1, $2, $3, $4::jsonb) RETURNING *`,
+    [channel, feeCents, callId, JSON.stringify([event("call", channel === "web" ? "Browser call started" : "Phone call answered")])],
   )) as Job[];
   return rows[0];
 }

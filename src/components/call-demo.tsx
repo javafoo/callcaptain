@@ -2,31 +2,37 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Job } from "@/lib/db";
-import { STATUS_LABEL, STATUS_TONE, dollars } from "@/lib/format";
-import { Keypad } from "./keypad";
+import { dollars, shortId } from "@/lib/format";
+import { KEYPAD_STEPS, SecureKeypad } from "./keypad";
 import { PayPalPay } from "./paypal-hold";
+import { StatusPill } from "./status-pill";
+import { Card, Icon, cx } from "./ui";
 import { useCall } from "./use-call";
 
-const STEPS = [
-  { key: "call", label: "Answered" },
-  { key: "details", label: "Triage" },
-  { key: "hold", label: "PayPal hold" },
-  { key: "dispatch", label: "Dispatched" },
-] as const;
+export type DemoBusiness = { name: string; agentName: string; technician: string; tripFeeCents: number };
 
-function stepIndex(job: Job | null): number {
+const STEPS = [
+  { label: "Answered", icon: "phone" as const },
+  { label: "Triage", icon: "wrench" as const },
+  { label: "PayPal hold", icon: "shield" as const },
+  { label: "Dispatched", icon: "truck" as const },
+];
+
+function progress(job: Job | null): number {
   if (!job) return -1;
-  if (["dispatched", "completed", "balance_due", "paid", "cancelled_fee"].includes(job.status)) return 3;
-  if (job.status === "hold_placed") return 2.5;
+  if (["dispatched", "completed", "balance_due", "paid", "cancelled_fee"].includes(job.status)) return 4;
+  if (job.status === "hold_placed") return 3;
   if (job.status === "awaiting_hold") return 2;
-  if (job.customer_name || job.issue) return 1;
-  return 0;
+  if (job.customer_name || job.issue) return 2;
+  return 1;
 }
 
-export function CallDemo({ paypalClientId, liveCalls }: { paypalClientId: string; liveCalls: boolean }) {
+export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClientId: string; liveCalls: boolean; business: DemoBusiness }) {
   const { phase, error, jobId, liveAt, start, hangUp, sendDigit, audioRef } = useCall();
   const [job, setJob] = useState<Job | null>(null);
   const [now, setNow] = useState(0);
+  const [tab, setTab] = useState<"conversation" | "activity">("conversation");
+  const [keypadFallback, setKeypadFallback] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!jobId) return;
@@ -34,12 +40,11 @@ export function CallDemo({ paypalClientId, liveCalls }: { paypalClientId: string
     if (res.ok) setJob(((await res.json()) as { job: Job }).job);
   }, [jobId]);
 
-  // Follow the job live while the call is up, then a little longer for the post-call ticket.
   useEffect(() => {
     if (!jobId) return;
     const first = setTimeout(refresh, 0);
     const fast = phase === "live" || phase === "connecting";
-    const t = setInterval(refresh, fast ? 1200 : 4000);
+    const t = setInterval(refresh, fast ? 1000 : 4000);
     return () => {
       clearTimeout(first);
       clearInterval(t);
@@ -51,169 +56,244 @@ export function CallDemo({ paypalClientId, liveCalls }: { paypalClientId: string
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [phase]);
-  const seconds = liveAt && now ? Math.max(0, Math.floor((now - liveAt) / 1000)) : 0;
 
+  // If SignalWire's keypad status never arrives, unlock after a few seconds rather than strand the caller.
+  const keypadRequested = job?.status === "awaiting_hold" && job.hold_method === "keypad";
+  useEffect(() => {
+    if (!keypadRequested) return;
+    const t = setTimeout(() => setKeypadFallback(true), 7000);
+    return () => {
+      clearTimeout(t);
+      setKeypadFallback(false);
+    };
+  }, [keypadRequested]);
+
+  const seconds = liveAt && now ? Math.max(0, Math.floor((now - liveAt) / 1000)) : 0;
   const active = phase === "connecting" || phase === "live";
-  const current = stepIndex(job);
-  const transcript = (job?.events ?? []).filter((e) => e.kind === "caller" || e.kind === "agent_said").slice(-8);
-  const money = (job?.events ?? []).filter((e) => !["caller", "agent_said"].includes(e.kind)).slice(-6).reverse();
+  const step = progress(job);
+  const transcript = (job?.events ?? []).filter((e) => e.kind === "caller" || e.kind === "agent_said");
+  const activity = (job?.events ?? []).filter((e) => !["caller", "agent_said"].includes(e.kind)).slice().reverse();
   const showPayPal = job?.status === "awaiting_hold" && job.hold_method === "paypal" && job.order_id;
-  const showKeypad = job?.status === "awaiting_hold" && job.hold_method === "keypad" && phase === "live";
+  const keypadUnlocked = KEYPAD_STEPS.some((s) => s.key === job?.pay_step) || job?.pay_step === "payment-processing" || keypadFallback;
+  const held = job?.status === "hold_placed" || job?.status === "dispatched";
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      {/* The phone */}
-      <div className="flex flex-col rounded-3xl bg-slate-950 p-6 text-white shadow-xl ring-1 ring-slate-800">
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <span>Harbor Plumbing &amp; Heating</span>
-          <span className="rounded-full bg-slate-800 px-2 py-0.5">After-hours line</span>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 py-10">
-          <div className="relative">
-            {phase === "live" && <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/30" />}
+    <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+      {/* The homeowner's phone */}
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative flex h-[680px] w-full max-w-[360px] flex-col overflow-hidden rounded-[2.75rem] border-[10px] border-gray-900 bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 shadow-2xl">
+          <div className="absolute left-1/2 top-2 h-6 w-28 -translate-x-1/2 rounded-full bg-gray-900" />
+          <div className="flex items-center justify-between px-7 pt-3 text-[11px] font-semibold text-white/80">
+            <span>2:07 AM</span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-3 rounded-sm bg-white/70" /> 5G
+            </span>
+          </div>
+
+          <div className="flex flex-1 flex-col items-center px-6 pt-10 text-center text-white">
+            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
+              <Icon name="wrench" className="h-9 w-9 text-white/90" />
+            </span>
+            <p className="mt-4 text-xl font-semibold">{business.name}</p>
+            <p className="text-sm text-white/60">After-hours line</p>
+            <p className={cx("mt-3 text-sm", phase === "error" ? "text-red-300" : "text-white/80")}>
+              {phase === "idle" && (liveCalls ? "Tap the green button to call" : "Live calls aren't configured here")}
+              {phase === "connecting" && "Calling…"}
+              {phase === "live" && `${business.agentName} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`}
+              {phase === "ended" && "Call ended"}
+              {phase === "error" && error}
+            </p>
+            {phase === "live" && (
+              <div className="mt-4 flex h-8 items-end gap-1" aria-hidden>
+                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                  <span key={i} className="w-1.5 animate-pulse rounded-full bg-brand-500" style={{ height: `${10 + ((i * 7) % 22)}px`, animationDelay: `${i * 120}ms` }} />
+                ))}
+              </div>
+            )}
+
+            <div className="mt-6 w-full">
+              {keypadRequested && phase === "live" && <SecureKeypad serverStep={job?.pay_step ?? null} unlocked={keypadUnlocked} onSend={(d) => void sendDigit(d)} />}
+              {held && phase === "live" && (
+                <div className="flex items-center gap-2 rounded-2xl bg-brand-500/15 p-3 text-left text-sm text-brand-100 ring-1 ring-brand-500/30">
+                  <Icon name="shield" className="h-5 w-5 shrink-0 text-brand-500" />
+                  {dollars(job?.fee_cents)} hold approved. Nothing charged.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-center pb-10">
             <button
               type="button"
               disabled={!liveCalls}
               onClick={() => void (active ? hangUp() : start())}
-              className={`relative flex h-28 w-28 items-center justify-center rounded-full text-sm font-semibold shadow-lg transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
-                active ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-500 hover:bg-emerald-400"
-              }`}
+              className={cx(
+                "flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40",
+                active ? "bg-red-500 hover:bg-red-600" : "bg-brand-500 hover:bg-brand-600",
+              )}
               aria-label={active ? "Hang up" : "Call the after-hours line"}
             >
-              <svg viewBox="0 0 24 24" className={`h-10 w-10 ${active ? "rotate-[135deg]" : ""} transition`} fill="currentColor" aria-hidden>
-                <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z" />
-              </svg>
+              <Icon name="phone" className={cx("h-7 w-7 transition", active && "rotate-[135deg]")} />
             </button>
           </div>
-          <div className="text-center">
-            <p className="text-lg font-semibold">
-              {phase === "idle" && "Tap to call"}
-              {phase === "connecting" && "Connecting…"}
-              {phase === "live" && `Live with Ava · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`}
-              {phase === "ended" && "Call ended"}
-              {phase === "error" && "Couldn't connect"}
-            </p>
-            <p className="mt-1 max-w-xs text-sm text-slate-400">
-              {!liveCalls
-                ? "Live calls aren't configured on this deployment."
-                : phase === "error"
-                  ? error
-                  : phase === "live"
-                    ? "Talk normally. Ava can hear you."
-                    : "Uses your microphone. Pretend it's 2 AM and a pipe just burst."}
-            </p>
-          </div>
-          {showKeypad && (
-            <div className="w-full rounded-2xl bg-white p-4 text-slate-900">
-              <p className="mb-3 text-center text-sm font-medium">Secure keypad · type the test card below</p>
-              <Keypad onDigit={(d) => void sendDigit(d)} />
-            </div>
-          )}
+          <audio ref={audioRef} autoPlay className="hidden" />
         </div>
-        <ol className="space-y-1.5 border-t border-slate-800 pt-4 text-xs text-slate-400">
-          <li>1. Say what happened, like &ldquo;my water heater burst.&rdquo;</li>
-          <li>2. Agree to the hold. The PayPal button appears on the right.</li>
-          <li>
-            3. Pay with the sandbox buyer, or <span className="text-slate-200">Debit or Credit Card</span> with <span className="font-mono text-slate-200">4111 1111 1111 1111</span>, any future date, CVV 123.
-          </li>
-          <li>4. Or ask to use your keypad and type that same card, then 1229, 123, 95131.</li>
-        </ol>
-        <audio ref={audioRef} autoPlay className="hidden" />
+        <p className="max-w-[360px] text-center text-xs text-gray-500">You&apos;re the homeowner. Uses your microphone; works best in Chrome on a laptop.</p>
       </div>
 
-      {/* The live job */}
-      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Live job</p>
-            <h2 className="text-xl font-semibold text-slate-900">{job?.customer_name ? `${job.customer_name}, ${job.urgency ?? "new"} call` : "Waiting for a call"}</h2>
+      {/* The job, building itself */}
+      <Card className="flex min-h-[680px] flex-col">
+        {!job ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+              <Icon name="jobs" className="h-7 w-7" />
+            </span>
+            <p className="text-lg font-semibold text-gray-900">The job builds itself while you talk</p>
+            <p className="max-w-md text-sm text-gray-500">
+              Call {business.agentName}, describe an emergency like &ldquo;my water heater burst,&rdquo; and agree to the service-call hold. The PayPal button shows up here.
+            </p>
           </div>
-          {job && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_TONE[job.status]}`}>{STATUS_LABEL[job.status]}</span>}
-        </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Job {shortId(job.id)} · {job.urgency ?? "new"} · after hours</p>
+                <h2 className="mt-1 text-xl font-semibold text-gray-900">{job.customer_name ?? "New caller"}</h2>
+              </div>
+              <StatusPill status={job.status} />
+            </div>
 
-        <ol className="grid grid-cols-4 gap-2">
-          {STEPS.map((s, i) => {
-            const done = current > i || (i === 2 && current >= 2.5);
-            const now = !done && Math.ceil(current) === i;
-            return (
-              <li key={s.key} className="flex flex-col gap-1.5">
-                <span className={`h-1.5 rounded-full ${done ? "bg-emerald-500" : now ? "animate-pulse bg-amber-400" : "bg-slate-200"}`} />
-                <span className={`text-xs ${done || now ? "font-medium text-slate-800" : "text-slate-400"}`}>{s.label}</span>
-              </li>
-            );
-          })}
-        </ol>
+            <ol className="grid grid-cols-4 border-b border-gray-100">
+              {STEPS.map((s, i) => {
+                const done = step > i;
+                const current = step === i;
+                return (
+                  <li key={s.label} className="flex flex-col items-center gap-1.5 px-2 py-4">
+                    <span
+                      className={cx(
+                        "flex h-9 w-9 items-center justify-center rounded-full",
+                        done ? "bg-brand-600 text-white" : current ? "bg-amber-50 text-amber-600 ring-2 ring-amber-300" : "bg-gray-100 text-gray-400",
+                      )}
+                    >
+                      <Icon name={done ? "check" : s.icon} className="h-[18px] w-[18px]" />
+                    </span>
+                    <span className={cx("text-xs", done || current ? "font-medium text-gray-900" : "text-gray-400")}>{s.label}</span>
+                  </li>
+                );
+              })}
+            </ol>
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-2xl bg-slate-50 p-4 text-sm">
-          <dt className="text-slate-500">Address</dt>
-          <dd className="text-slate-900">{job?.service_address ?? "Not yet"}</dd>
-          <dt className="text-slate-500">Problem</dt>
-          <dd className="text-slate-900">{job?.issue ?? "Not yet"}</dd>
-          <dt className="text-slate-500">Service call</dt>
-          <dd className="text-slate-900">{job ? `${dollars(job.fee_cents)} hold, charged after the job` : "Not yet"}</dd>
-          <dt className="text-slate-500">Technician</dt>
-          <dd className="text-slate-900">{job?.tech_name ? `${job.tech_name}, ${job.eta}` : job?.status === "scheduled" ? job.eta : "Not yet"}</dd>
-        </dl>
-
-        {showPayPal && job?.order_id && (
-          <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
-            <p className="font-semibold text-slate-900">Approve the {dollars(job.fee_cents)} hold</p>
-            <p className="mb-3 text-sm text-slate-600">Nothing is charged now. Harbor charges only after the work is done, and releases the hold if you cancel before the tech heads out.</p>
-            <PayPalPay
-              clientId={paypalClientId}
-              orderId={job.order_id}
-              finalize={async (orderId) => {
-                const res = await fetch(`/api/jobs/${job.id}/hold`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ orderId }),
-                });
-                const body = (await res.json()) as { job?: Job; error?: string };
-                if (!res.ok || !body.job) throw new Error(body.error ?? "The hold didn't go through.");
-                setJob(body.job);
-              }}
-            />
-          </div>
-        )}
-
-        {(job?.status === "hold_placed" || job?.status === "dispatched") && (
-          <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-900 ring-1 ring-emerald-200">
-            <p className="font-semibold">{dollars(job.fee_cents)} held{job.card_last4 ? ` on card •••• ${job.card_last4}` : " with PayPal"}. $0 charged.</p>
-            <p>The owner captures the final amount after the job from the dashboard.</p>
-          </div>
-        )}
-
-        <div className="grid flex-1 gap-4 md:grid-cols-2">
-          <div className="flex min-h-48 flex-col rounded-2xl border border-slate-200 p-4">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Transcript</p>
-            <div className="flex flex-1 flex-col gap-2 overflow-y-auto text-sm">
-              {transcript.length === 0 && <p className="text-slate-400">The conversation shows up here as you talk.</p>}
-              {transcript.map((t, i) => (
-                <p key={i} className={t.kind === "caller" ? "self-end rounded-2xl rounded-br-sm bg-blue-600 px-3 py-1.5 text-white" : "self-start rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-1.5 text-slate-800"}>
-                  {t.text}
-                </p>
+            <div className="grid gap-px bg-gray-100 sm:grid-cols-2">
+              {[
+                { icon: "pin" as const, label: "Service address", value: job.service_address ? `${job.service_address}${job.zip && !job.service_address.includes(job.zip) ? ` ${job.zip}` : ""}` : null },
+                { icon: "wrench" as const, label: "Problem", value: job.issue },
+                { icon: "phone" as const, label: "Callback", value: job.callback_phone },
+                { icon: "truck" as const, label: "Technician", value: job.tech_name ? `${job.tech_name}, ${job.eta}` : job.status === "scheduled" ? job.eta : null },
+              ].map((r) => (
+                <div key={r.label} className="flex gap-3 bg-white px-6 py-3.5">
+                  <Icon name={r.icon} className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500">{r.label}</p>
+                    <p className={cx("text-sm", r.value ? "text-gray-900" : "text-gray-300")}>{r.value ?? "Waiting…"}</p>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-          <div className="flex min-h-48 flex-col rounded-2xl border border-slate-200 p-4">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Money trail</p>
-            <ul className="space-y-2 text-sm">
-              {money.length === 0 && <li className="text-slate-400">Every PayPal step is logged here.</li>}
-              {money.map((e, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                  <span className="text-slate-700">{e.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-        {job && (
-          <a href={`/dashboard?job=${job.id}`} className="self-end text-sm font-medium text-blue-700 hover:underline">
-            Finish the job as the owner →
-          </a>
+
+            {/* Payment */}
+            <div className="border-y border-gray-100 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">After-hours service call</p>
+                <p className="text-sm font-semibold tabular-nums text-gray-900">{dollars(job.fee_cents)}</p>
+              </div>
+              {job.status === "out_of_area" && <p className="mt-2 text-sm text-gray-500">Outside the service area. No hold, no dispatch.</p>}
+              {!held && job.status !== "out_of_area" && !showPayPal && !keypadRequested && (
+                <p className="mt-1 text-sm text-gray-500">Held on the call, charged only after the work. Free to cancel before the tech heads out.</p>
+              )}
+              {keypadRequested && <p className="mt-2 text-sm text-gray-600">The caller is typing a card on the secure keypad. PayPal places the hold; {business.agentName} never hears the digits.</p>}
+              {showPayPal && job.order_id && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                  <p className="text-sm font-medium text-gray-900">Approve the {dollars(job.fee_cents)} hold</p>
+                  <p className="mb-3 text-sm text-gray-600">Nothing is charged now. You pay after the work is done.</p>
+                  <PayPalPay
+                    clientId={paypalClientId}
+                    orderId={job.order_id}
+                    finalize={async (orderId) => {
+                      const res = await fetch(`/api/jobs/${job.id}/hold`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ orderId }),
+                      });
+                      const body = (await res.json()) as { job?: Job; error?: string };
+                      if (!res.ok || !body.job) throw new Error(body.error ?? "The hold didn't go through.");
+                      setJob(body.job);
+                    }}
+                  />
+                </div>
+              )}
+              {held && (
+                <div className="mt-3 flex items-start gap-3 rounded-xl bg-brand-50 p-4 ring-1 ring-brand-200">
+                  <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
+                  <div className="text-sm">
+                    <p className="font-medium text-brand-700">
+                      Held with {job.hold_method === "keypad" ? `card •••• ${job.card_last4}` : "PayPal"}. $0 charged.
+                    </p>
+                    <p className="text-gray-600">
+                      Charged after the job. Cancel after dispatch and only the {dollars(business.tripFeeCents)} trip fee applies.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Conversation / activity */}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex gap-6 border-b border-gray-100 px-6">
+                {(["conversation", "activity"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTab(t)}
+                    className={cx("-mb-px border-b-2 py-3 text-sm font-medium capitalize", tab === t ? "border-brand-600 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800")}
+                  >
+                    {t === "activity" ? "Payment activity" : "Conversation"}
+                  </button>
+                ))}
+              </div>
+              <div className="max-h-80 flex-1 overflow-y-auto px-6 py-4">
+                {tab === "conversation" ? (
+                  <div className="flex flex-col gap-2 text-sm">
+                    {transcript.length === 0 && <p className="text-gray-400">The conversation shows up here as you talk.</p>}
+                    {transcript.map((t, i) => (
+                      <div key={i} className={cx("flex max-w-[85%] flex-col", t.kind === "caller" ? "self-end items-end" : "self-start")}>
+                        <span className="mb-0.5 text-[11px] text-gray-400">{t.kind === "caller" ? "Caller" : business.agentName}</span>
+                        <p className={cx("rounded-2xl px-3.5 py-2", t.kind === "caller" ? "rounded-br-md bg-ink-800 text-white" : "rounded-bl-md bg-gray-100 text-gray-800")}>{t.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <ol className="relative space-y-4 border-l border-gray-200 pl-5">
+                    {activity.map((e, i) => (
+                      <li key={i} className="relative">
+                        <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-white" />
+                        <p className="text-sm text-gray-800">{e.text}</p>
+                        <p className="text-xs text-gray-400">{new Date(e.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" })}</p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
+              <p className="text-xs text-gray-500">The owner charges the final bill after the job.</p>
+              <a href={`/dashboard?job=${job.id}`} className="text-sm font-semibold text-brand-700 hover:text-brand-600">
+                Open in Jobs →
+              </a>
+            </div>
+          </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

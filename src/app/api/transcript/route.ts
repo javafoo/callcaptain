@@ -14,6 +14,11 @@ export async function POST(req: Request) {
   if (!hasWebhookKey(req)) return new NextResponse("forbidden", { status: 403 });
   const body = (await req.json().catch(() => ({}))) as DebugBody;
   const turn = body.conversation_add;
+  if (!turn) {
+    // Function calls, errors and other agent events: logged for debugging, never stored.
+    const kind = Object.keys(body).find((k) => k !== "call_info") ?? "unknown";
+    console.log("[agent-debug]", kind, JSON.stringify(body[kind]).slice(0, 600));
+  }
   if (!turn?.content || (turn.role !== "user" && turn.role !== "assistant")) return NextResponse.json({ ok: true });
 
   // The payment system's injected notice is a "user" turn in SignalWire's log; it isn't the caller.
@@ -23,6 +28,8 @@ export async function POST(req: Request) {
   if (turn.role === "assistant" && /^\s*(```|\{)/.test(turn.content)) return NextResponse.json({ ok: true });
 
   const job = await getJob(new URL(req.url).searchParams.get("job") ?? "");
-  if (job) await updateJob(job.id, {}, event(turn.role === "user" ? "caller" : "agent_said", turn.content.trim()));
+  // Never keep anything that looks like a card number, even if one slips through as keypad text.
+  const text = turn.content.trim().replace(/\d[\d\s-]{5,}\d/g, (m) => "•".repeat(Math.min(m.replace(/\D/g, "").length, 16)));
+  if (job) await updateJob(job.id, {}, event(turn.role === "user" ? "caller" : "agent_said", text));
   return NextResponse.json({ ok: true });
 }

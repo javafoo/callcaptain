@@ -3,6 +3,7 @@ import { event, getJob, updateJob } from "@/lib/db";
 import { hasWebhookKey } from "@/lib/env";
 import { holdKeypadCard } from "@/lib/money";
 import { PayPalError } from "@/lib/paypal";
+import { getBusiness } from "@/lib/settings";
 
 /**
  * SignalWire `pay` connector (https://signalwire.com/docs/swml/reference/calling/pay,
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   if (number.length < 12 || !body.expiry_month || !body.expiry_year) return fail(400, "invalid_card", "Card details are incomplete");
 
   try {
-    const { authorizationId } = await holdKeypadCard(job, {
+    const { authorizationId } = await holdKeypadCard(job, await getBusiness(), {
       number,
       expiryMonth: body.expiry_month,
       expiryYear: body.expiry_year,

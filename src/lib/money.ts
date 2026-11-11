@@ -1,4 +1,4 @@
-import { BUSINESS } from "./business";
+import type { Business } from "./business";
 import { dollars, event, updateJob, type Job } from "./db";
 import {
   authorizeCard,
@@ -18,10 +18,10 @@ import { tellAgent } from "./signalwire";
 
 const HELD = new Set(["hold_placed", "dispatched"]);
 
-export async function requestPayPalHold(job: Job): Promise<Job> {
+export async function requestPayPalHold(job: Job, b: Business): Promise<Job> {
   if (HELD.has(job.status)) return job;
   if (job.order_id && job.status === "awaiting_hold") return job;
-  const order = await createHoldOrder(job.id, job.fee_cents, BUSINESS.name);
+  const order = await createHoldOrder(job.id, job.fee_cents, b.businessName);
   return updateJob(
     job.id,
     { status: "awaiting_hold", order_id: order.id, hold_method: "paypal" },
@@ -56,9 +56,9 @@ export async function confirmPayPalHold(job: Job, orderId: string): Promise<Job>
 export type KeypadCard = { number: string; expiryMonth: string; expiryYear: string; cvv?: string; postalCode?: string };
 
 /** SignalWire's pay connector posted the keypad card: hold it through PayPal. */
-export async function holdKeypadCard(job: Job, card: KeypadCard): Promise<{ job: Job; authorizationId: string }> {
+export async function holdKeypadCard(job: Job, b: Business, card: KeypadCard): Promise<{ job: Job; authorizationId: string }> {
   if (HELD.has(job.status) && job.authorization_id) return { job, authorizationId: job.authorization_id };
-  const { authorization } = await authorizeCard(job.id, job.fee_cents, BUSINESS.name, { ...card, name: job.customer_name ?? undefined });
+  const { authorization } = await authorizeCard(job.id, job.fee_cents, b.businessName, { ...card, name: job.customer_name ?? undefined });
   const last4 = card.number.slice(-4);
   const updated = await updateJob(
     job.id,
@@ -68,24 +68,25 @@ export async function holdKeypadCard(job: Job, card: KeypadCard): Promise<{ job:
       authorization_id: authorization.id,
       authorization_expires: authorization.expiration_time ?? null,
       card_last4: last4,
+      pay_step: "done",
     },
     event("hold_placed", `${dollars(job.fee_cents)} hold placed on card •••• ${last4}, typed on the keypad. The AI never heard it.`),
   );
   return { job: updated, authorizationId: authorization.id };
 }
 
-export async function dispatchTechnician(job: Job): Promise<Job> {
+export async function dispatchTechnician(job: Job, b: Business): Promise<Job> {
   if (job.status === "dispatched") return job;
   if (job.status !== "hold_placed") throw new Error("hold not placed");
   return updateJob(
     job.id,
-    { status: "dispatched", tech_name: BUSINESS.technician, eta: BUSINESS.eta },
-    event("dispatched", `${BUSINESS.technician} dispatched, arriving in ${BUSINESS.eta}`),
+    { status: "dispatched", tech_name: b.technician, eta: b.eta },
+    event("dispatched", `${b.technician} dispatched, arriving in ${b.eta}`),
   );
 }
 
-export async function bookMorning(job: Job): Promise<Job> {
-  return updateJob(job.id, { status: "scheduled", eta: BUSINESS.morningSlot }, event("scheduled", `No hold. Booked ${BUSINESS.morningSlot}`));
+export async function bookMorning(job: Job, b: Business): Promise<Job> {
+  return updateJob(job.id, { status: "scheduled", eta: b.morningSlot }, event("scheduled", `No hold. Booked ${b.morningSlot}`));
 }
 
 /**
@@ -94,7 +95,7 @@ export async function bookMorning(job: Job): Promise<Job> {
  *  - final > hold: capture the whole hold, send the balance as a PayPal payment link
  *    (Pay Later is offered there on eligible amounts)
  */
-export async function completeJob(job: Job, finalCents: number): Promise<Job> {
+export async function completeJob(job: Job, b: Business, finalCents: number): Promise<Job> {
   if (!job.authorization_id || !HELD.has(job.status)) throw new Error("There is no active hold on this job.");
   if (!Number.isInteger(finalCents) || finalCents <= 0) throw new Error("Enter the final amount in dollars.");
 
@@ -110,7 +111,7 @@ export async function completeJob(job: Job, finalCents: number): Promise<Job> {
 
   const capture = await captureAuthorization(job.authorization_id, job.fee_cents, `job-${job.id}`);
   const balance = finalCents - job.fee_cents;
-  const order = await createBalanceOrder(job.id, balance, BUSINESS.name);
+  const order = await createBalanceOrder(job.id, balance, b.businessName);
   return updateJob(
     job.id,
     { status: "balance_due", final_cents: finalCents, captured_cents: job.fee_cents, balance_cents: balance, balance_order_id: order.id },
@@ -127,15 +128,15 @@ export async function releaseHold(job: Job, reason: string): Promise<Job> {
 }
 
 /** Cancellation policy: free before dispatch; after dispatch keep the trip fee, release the rest. */
-export async function cancelVisit(job: Job): Promise<{ job: Job; message: string }> {
+export async function cancelVisit(job: Job, b: Business): Promise<{ job: Job; message: string }> {
   if (job.status === "dispatched" && job.authorization_id) {
-    const capture = await captureAuthorization(job.authorization_id, BUSINESS.tripFeeCents, `job-${job.id}-trip`);
+    const capture = await captureAuthorization(job.authorization_id, b.tripFeeCents, `job-${job.id}-trip`);
     const updated = await updateJob(
       job.id,
-      { status: "cancelled_fee", captured_cents: BUSINESS.tripFeeCents, final_cents: BUSINESS.tripFeeCents },
-      event("cancelled", `Cancelled after dispatch. Kept the ${dollars(BUSINESS.tripFeeCents)} trip fee (capture ${capture.id}), released the rest.`),
+      { status: "cancelled_fee", captured_cents: b.tripFeeCents, final_cents: b.tripFeeCents },
+      event("cancelled", `Cancelled after dispatch. Kept the ${dollars(b.tripFeeCents)} trip fee (capture ${capture.id}), released the rest.`),
     );
-    return { job: updated, message: `Cancelled. The technician was already on the way, so the ${dollars(BUSINESS.tripFeeCents)} trip fee was charged and the rest of the hold released.` };
+    return { job: updated, message: `Cancelled. The technician was already on the way, so the ${dollars(b.tripFeeCents)} trip fee was charged and the rest of the hold released.` };
   }
   if (job.status === "hold_placed" && job.authorization_id) {
     return { job: await releaseHold(job, "Caller cancelled before dispatch."), message: "Cancelled. The hold was released and nothing was charged." };

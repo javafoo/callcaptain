@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { buildSwml } from "@/lib/agent";
 import { createJob, getJob, updateJob, event, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
+import { getBusiness } from "@/lib/settings";
 
 /**
  * SignalWire fetches the call script here when a call starts (SWML webhook resource,
@@ -26,13 +27,14 @@ export async function POST(req: Request) {
   const jobId = findJobId(body);
   if (process.env.LOG_SWML_BODY) console.log("[swml] body", JSON.stringify(body).slice(0, 4000));
 
+  const b = await getBusiness();
   let job: Job | null = jobId ? await getJob(jobId) : null;
   if (job) {
     job = await updateJob(job.id, { call_id: callId }, event("agent", "Agent answered"));
   } else {
-    job = await createJob("phone", callId);
+    job = await createJob("phone", b.serviceCallCents, callId);
     if (body.call?.from) job = await updateJob(job.id, { callback_phone: body.call.from });
   }
 
-  return NextResponse.json(buildSwml(job, originOf(req), env.webhookSecret));
+  return NextResponse.json(buildSwml(job, b, originOf(req), env.webhookSecret));
 }
