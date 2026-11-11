@@ -18,6 +18,8 @@ export const LANGUAGE_OPTIONS = [
   { code: "hi", label: "Hindi" },
 ] as const;
 
+export type County = { county: string; state: string };
+
 export type Business = {
   businessName: string;
   agentName: string;
@@ -27,8 +29,15 @@ export type Business = {
   services: string;
   serviceCallCents: number;
   tripFeeCents: number;
-  /** ZIP codes or ZIP prefixes ("951" covers 95100 to 95199). Empty means anywhere. */
+  /** The service area in the owner's words, e.g. "Northern Virginia and DC". Read to callers. */
+  serviceAreaText: string;
+  /** Counties (or independent cities) the AI mapped from serviceAreaText; checked per call. */
+  serviceCounties: County[];
+  /** Extra ZIP codes or prefixes ("951" covers 95100 to 95199). */
   serviceZips: string[];
+  /** Website the setup was imported from, and what the agent learned there. */
+  websiteUrl: string;
+  knowledge: string;
   technician: string;
   eta: string;
   morningSlot: string;
@@ -43,7 +52,11 @@ export const DEFAULT_BUSINESS: Business = {
   services: "plumbing, water heaters, heating and drains",
   serviceCallCents: 14900,
   tripFeeCents: 7900,
-  serviceZips: ["950", "951"],
+  serviceAreaText: "San Jose and the rest of Santa Clara County",
+  serviceCounties: [{ county: "Santa Clara County", state: "CA" }],
+  serviceZips: [],
+  websiteUrl: "",
+  knowledge: "",
   technician: "Marcus",
   eta: "35 to 45 minutes",
   morningSlot: "tomorrow between 7 and 9 AM",
@@ -61,11 +74,17 @@ export function zipFrom(text: string | null | undefined): string | null {
   return text?.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] ?? null;
 }
 
-/** null = we can't tell yet (no ZIP); true/false once we have one. */
-export function inServiceArea(b: Business, zip: string | null): boolean | null {
-  if (b.serviceZips.length === 0) return true;
-  if (!zip) return null;
+/** Pure ZIP-list check. County matching needs a lookup, so it lives in ./area.ts. */
+export function zipListed(b: Business, zip: string): boolean {
   return b.serviceZips.some((z) => zip.startsWith(z));
+}
+
+export function hasAreaRules(b: Business): boolean {
+  return b.serviceZips.length > 0 || b.serviceCounties.length > 0;
+}
+
+export function countyKey(c: County): string {
+  return `${c.county.toLowerCase().replace(/\s+/g, " ").trim()}|${c.state.toUpperCase()}`;
 }
 
 export function languageLabels(codes: string[]): string {

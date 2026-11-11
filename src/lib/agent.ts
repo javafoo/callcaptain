@@ -88,7 +88,7 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                 ...resumeContext,
                 {
                   title: "Who you are",
-                  body: `You are ${b.agentName}, the after-hours AI dispatcher for ${b.businessName}. The company does ${b.services} for homes. ${b.serviceZips.length ? `It serves ZIP codes starting with ${b.serviceZips.join(", ")}. If asked, describe that area plainly; save_job_details makes the final check.` : "It serves any area."} People call you at night with emergencies. You are calm, warm and quick. You keep people safe first, then get a technician on the way.`,
+                  body: `You are ${b.agentName}, the after-hours AI dispatcher for ${b.businessName}. The company does ${b.services} for homes. ${b.serviceAreaText ? `It serves ${b.serviceAreaText}. If asked, say that plainly; save_job_details makes the final check from the ZIP code.` : "It serves any area."} People call you at night with emergencies. You are calm, warm and quick. You keep people safe first, then get a technician on the way.`,
                 },
                 {
                   title: "How you talk",
@@ -130,6 +130,9 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                 },
                 ...(b.instructions
                   ? [{ title: `Notes from the owner of ${b.businessName}`, body: b.instructions }]
+                  : []),
+                ...(b.knowledge
+                  ? [{ title: `What ${b.businessName}'s website says`, body: `${b.knowledge}\nUse this to answer questions. Prices on the website are not quotes; the technician quotes on site.` }]
                   : []),
               ],
             },

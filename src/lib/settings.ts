@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { DEFAULT_BUSINESS, LANGUAGE_OPTIONS, type Business } from "./business";
+import { DEFAULT_BUSINESS, LANGUAGE_OPTIONS, type Business, type County } from "./business";
 import { VOICES } from "./voices";
 
 /**
@@ -53,7 +53,14 @@ export function sanitize(input: Record<string, unknown>): Business {
     serviceCallCents,
     // The trip fee is captured from the hold, so it can't be larger than the hold.
     tripFeeCents: Math.min(cents(input.tripFeeDollars, d.tripFeeCents, 100000), serviceCallCents),
+    serviceAreaText: typeof input.serviceAreaText === "string" ? input.serviceAreaText.trim().slice(0, 200) : d.serviceAreaText,
+    serviceCounties: (Array.isArray(input.serviceCounties) ? input.serviceCounties : d.serviceCounties)
+      .filter((c): c is County => Boolean(c && typeof c === "object" && typeof (c as County).county === "string" && typeof (c as County).state === "string"))
+      .map((c) => ({ county: c.county.trim().slice(0, 60), state: c.state.trim().toUpperCase().slice(0, 2) }))
+      .slice(0, 80),
     serviceZips: zips.map((z) => String(z).replace(/\D/g, "")).filter((z) => z.length >= 3 && z.length <= 5).slice(0, 60),
+    websiteUrl: typeof input.websiteUrl === "string" ? input.websiteUrl.trim().slice(0, 200) : "",
+    knowledge: typeof input.knowledge === "string" ? input.knowledge.trim().slice(0, 3000) : "",
     technician: clean(input.technician, 30, d.technician),
     eta: clean(input.eta, 40, d.eta),
     morningSlot: clean(input.morningSlot, 60, d.morningSlot),

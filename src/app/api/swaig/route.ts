@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { keypadPayAction } from "@/lib/agent";
-import { inServiceArea, zipFrom } from "@/lib/business";
+import { checkArea } from "@/lib/area";
+import { zipFrom } from "@/lib/business";
 import { dollars, event, findJobByCall, getJob, updateJob, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
 import { bookMorning, cancelVisit, dispatchTechnician, requestPayPalHold } from "@/lib/money";
@@ -37,14 +38,16 @@ export async function POST(req: Request) {
   const b = await getBusiness();
 
   const outOfArea = () =>
-    reply(`This address is outside ${b.businessName}'s service area, so you cannot send anyone or take a hold. Apologize kindly and suggest they call a local company.`);
+    reply(`This address is outside ${b.businessName}'s service area (${b.serviceAreaText}), so you cannot send anyone or take a hold. Apologize kindly and suggest they call a local company.`);
 
   try {
     switch (body.function) {
       case "save_job_details": {
         const str = (k: string) => (typeof args[k] === "string" && (args[k] as string).trim() ? (args[k] as string).trim() : null);
         const zip = zipFrom(str("zip_code")) ?? zipFrom(str("service_address"));
-        const area = inServiceArea(b, zip);
+        const check = await checkArea(b, zip);
+        const area = check.inArea;
+        const where = check.place ? `${check.place.city}, ${check.place.state} (${check.place.county})` : null;
         job = await updateJob(
           job.id,
           {
@@ -57,10 +60,16 @@ export async function POST(req: Request) {
             ...(area === false ? { status: "out_of_area" as const } : area === true && job.status === "out_of_area" ? { status: "on_call" as const } : {}),
           },
           event("details", `${str("customer_name") ?? "Caller"} at ${str("service_address") ?? "unknown address"}${zip ? ` ${zip}` : ""}: ${str("issue") ?? ""}`),
-          ...(area === false ? [event("out_of_area", `ZIP ${zip} is outside the service area. No hold, no dispatch.`)] : []),
+          ...(area === false ? [event("out_of_area", `${where ?? `ZIP ${zip}`} is outside the service area (${b.serviceAreaText}). No hold, no dispatch.`)] : []),
+          ...(area === true && where ? [event("in_area", `${where} is inside the service area.`)] : []),
+          ...(check.unverified ? [event("area_unverified", `Couldn't look up ZIP ${zip}. Accepted; check the address before the visit.`)] : []),
         );
         if (area === null) return reply("Saved, but I still need the five-digit ZIP code to check the service area. Ask for it, then call save_job_details again.");
-        if (area === false) return outOfArea();
+        if (area === false) {
+          return reply(
+            `${where ? `That address is in ${where}, which is` : "That address is"} outside ${b.businessName}'s service area: ${b.serviceAreaText}. You cannot send anyone or take a hold. Apologize kindly, tell them the area you do cover, and suggest a local company.`,
+          );
+        }
         return reply(
           `Saved, and the address is in the service area. The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`,
         );
