@@ -110,7 +110,7 @@ export function Dashboard({ initialJobId }: { initialJobId: string | null }) {
         ))}
       </div>
 
-      <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="overflow-hidden">
           <CardHeader title="All jobs" subtitle="Every call the agent took, newest first. Click a row to open it." />
           <div className="h-[560px]">
@@ -129,7 +129,7 @@ export function Dashboard({ initialJobId }: { initialJobId: string | null }) {
             />
           </div>
         </Card>
-        <div className="2xl:sticky 2xl:top-6">
+        <div className="xl:sticky xl:top-6">
           <JobPanel job={selected} onChanged={load} />
         </div>
       </div>

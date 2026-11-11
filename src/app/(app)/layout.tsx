@@ -10,7 +10,7 @@ async function Shell() {
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="min-h-screen">
-      <Suspense fallback={<div className="fixed inset-y-0 left-0 hidden w-60 bg-ink-900 lg:block" />}>
+      <Suspense fallback={<Sidebar businessName="Your business" />}>
         <Shell />
       </Suspense>
       <div className="lg:pl-60">

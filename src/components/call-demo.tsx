@@ -144,14 +144,34 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
       {/* The job, building itself */}
       <Card className="flex min-h-[680px] flex-col">
         {!job ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <Icon name="jobs" className="h-7 w-7" />
-            </span>
-            <p className="text-lg font-semibold text-gray-900">The job builds itself while you talk</p>
-            <p className="max-w-md text-sm text-gray-500">
-              Call {business.agentName}, describe an emergency like &ldquo;my water heater burst,&rdquo; and agree to the service-call hold. The PayPal button shows up here.
-            </p>
+          <div className="flex flex-1 flex-col justify-center gap-8 p-8 sm:p-12">
+            <div>
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                <Icon name="jobs" className="h-6 w-6" />
+              </span>
+              <p className="mt-4 text-xl font-semibold text-gray-900">The job builds itself while you talk</p>
+              <p className="mt-1 max-w-lg text-sm text-gray-500">You play the homeowner. {business.agentName} handles the call; this card fills in live, and the PayPal button appears here when it&apos;s time to hold the service call.</p>
+            </div>
+            <ol className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["Call and explain", `Tap the green button and say something like "my water heater burst." Give a name and a San Jose address, ZIP 95112.`],
+                ["Approve the hold", "Say yes to the hold. Pay with the PayPal sandbox buyer from the README, or Debit or Credit Card with the test card below."],
+                ["Finish as the owner", "Open the job in Jobs and charge the final bill. Try $120, $1,840 or Customer cancelled."],
+              ].map(([title, body], i) => (
+                <li key={title} className="rounded-xl border border-gray-200 p-4">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-900 text-xs font-semibold text-white">{i + 1}</span>
+                  <p className="mt-3 text-sm font-semibold text-gray-900">{title}</p>
+                  <p className="mt-1 text-sm text-gray-500">{body}</p>
+                </li>
+              ))}
+            </ol>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-gray-50 px-4 py-3 text-sm ring-1 ring-gray-200">
+              <span className="font-medium text-gray-700">Sandbox test card</span>
+              <span className="font-mono text-gray-900">4111 1111 1111 1111</span>
+              <span className="text-gray-500">Exp <span className="font-mono text-gray-900">12/29</span></span>
+              <span className="text-gray-500">CVV <span className="font-mono text-gray-900">123</span></span>
+              <span className="text-gray-500">ZIP <span className="font-mono text-gray-900">95131</span></span>
+            </div>
           </div>
         ) : (
           <>
