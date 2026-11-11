@@ -54,7 +54,7 @@ export async function POST(req: Request) {
             issue: str("issue") ?? job.issue,
             urgency: str("urgency") ?? job.urgency,
             callback_phone: str("callback_phone") ?? job.callback_phone,
-            ...(area === false ? { status: "out_of_area" as const } : {}),
+            ...(area === false ? { status: "out_of_area" as const } : area === true && job.status === "out_of_area" ? { status: "on_call" as const } : {}),
           },
           event("details", `${str("customer_name") ?? "Caller"} at ${str("service_address") ?? "unknown address"}${zip ? ` ${zip}` : ""}: ${str("issue") ?? ""}`),
           ...(area === false ? [event("out_of_area", `ZIP ${zip} is outside the service area. No hold, no dispatch.`)] : []),

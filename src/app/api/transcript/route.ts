@@ -28,8 +28,8 @@ export async function POST(req: Request) {
   if (turn.role === "assistant" && /^\s*(```|\{)/.test(turn.content)) return NextResponse.json({ ok: true });
 
   const job = await getJob(new URL(req.url).searchParams.get("job") ?? "");
-  // Never keep anything that looks like a card number, even if one slips through as keypad text.
-  const text = turn.content.trim().replace(/\d[\d\s-]{5,}\d/g, (m) => "•".repeat(Math.min(m.replace(/\D/g, "").length, 16)));
+  // Never keep anything card-length (12+ digits), even if one slips through as keypad text.
+  const text = turn.content.trim().replace(/\d[\d\s-]{10,}\d/g, (m) => (m.replace(/\D/g, "").length >= 12 ? "•".repeat(16) : m));
   if (job) await updateJob(job.id, {}, event(turn.role === "user" ? "caller" : "agent_said", text));
   return NextResponse.json({ ok: true });
 }
