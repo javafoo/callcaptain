@@ -24,7 +24,8 @@ Ava, the AI dispatcher, answers the call and handles every money moment through 
 
 1. **Safety first, then triage.** She walks the caller to the water shutoff, checks for gas or electrical danger, and takes name, address and problem.
 2. **A hold, not a charge.** She explains the $149 after-hours service call and puts a **PayPal button on the caller's screen** mid-call. The caller approves with PayPal, Venmo or a card. It's a PayPal **authorization**: $0 moves.
-3. **Or the keypad, never the AI.** A caller who'd rather not tap a link types a card on the keypad. Ava hands the call to SignalWire's secure `pay` step (her session ends, so nothing is listening), PayPal holds the card, and a fresh Ava picks the call back up knowing the result. The model never sees a card number.
+3. **Or card on file, $0 tonight.** The owner can switch to **card on file** instead of a hold (Agent setup → Pricing and payment). Ava explains it, and the caller saves PayPal or a card with **PayPal Vault** right on the call screen. Nothing is charged or reserved. After the job, the technician goes over the price, the customer agrees, and the owner taps **Charge card**. The AI never sees a card number either way.
+   On real phone calls (no screen), a card goes in on the keypad instead: Ava hands the call to SignalWire's secure `pay` step, PayPal holds the card, and a fresh Ava picks the call back up knowing the result.
 4. **Live confirmation.** The moment PayPal approves, the server injects a notice into the live conversation and Ava says "You're all set, Marcus is on his way" without the caller asking.
 5. **Charge after the job.** In the owner dashboard the owner enters the final bill. PayPal **captures** it from the hold and releases the rest. A bill larger than the hold captures the hold and sends the balance as a PayPal link where **Pay Later** can split it up.
 6. **Fair cancellations.** Cancel before dispatch and the hold is **voided**. Cancel after the truck rolled and only the $79 trip fee is **partially captured**, with the rest released.
@@ -49,6 +50,9 @@ Callers who decline the hold are never turned away: Ava books the first morning 
 | Cancel before dispatch / owner release | `POST /v2/payments/authorizations/{id}/void` | `releaseHold` |
 | Cancel after dispatch | Partial capture of the trip fee, `final_capture: true` releases the rest | `cancelVisit` |
 | Balance above the hold | Orders v2 `intent: CAPTURE`, JS SDK v6 with **Pay Later** eligibility | `createBalanceOrder`, `/pay/[id]` |
+| Card on file, $0 (browser) | Vault v3 `POST /v3/vault/setup-tokens` → JS SDK v6 `PayPalSavePaymentButton` or **Card Fields** save session → `POST /v3/vault/payment-tokens` | `createSetupToken`, `createPaymentToken`; `src/components/card-on-file.tsx` |
+| Charge the card on file after the job, or the trip fee | Orders v2 `intent: CAPTURE` with `payment_source.card.vault_id` and `stored_credential` (merchant-initiated, unscheduled) | `chargeSaved`, `completeJob`, `cancelVisit` |
+| Cancelled before dispatch (card on file) | `DELETE /v3/vault/payment-tokens/{id}` | `releaseHold` |
 
 Every PayPal write sends a `PayPal-Request-Id`, so a retried webhook can't double-charge.
 
@@ -75,7 +79,7 @@ Every PayPal write sends a `PayPal-Request-Id`, so a retried webhook can't doubl
    - **Charge** `1840` → $149 captured, then open the customer's payment page to pay the $1,691 balance (Pay Later is offered on eligible amounts),
    - **Customer cancelled** → $79 trip fee kept, the rest released.
 
-**Keypad path:** during the call say "Can I just type my card on the keypad?" A keypad appears under the call button. Type `4111111111111111#`, then `1229`, `123`, `95131#`.
+**Card on file:** open **Agent setup**, choose **Card on file** under Pricing and payment, and save. Call again. When Ava explains the card on file, say yes, then save PayPal (sandbox buyer) or type the test card in the card boxes and tap **Save card**. $0 is charged. In Jobs, enter the final bill, tick **The customer approved this amount on site**, and tap **Charge card**. **Customer cancelled** after dispatch charges only the $79 trip fee.
 
 ### Sandbox logins
 
