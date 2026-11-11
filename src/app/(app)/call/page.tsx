@@ -45,12 +45,14 @@ function MoneyFlows({ fee, tripFee, agent }: { fee: string; tripFee: string; age
   );
 }
 
-export default function Home() {
+export const metadata = { title: "Test call · Call Captain" };
+
+export default function TestCallPage() {
   return (
     <>
       <PageHeader
-        title="Live call"
-        description="Your after-hours line, answered by AI. Call it from your browser, play a homeowner with an emergency, and watch the job and the PayPal hold fill in."
+        title="Test call"
+        description="Call your after-hours line from the browser. Play a homeowner with an emergency and watch the job, the PayPal hold and the dispatch fill in."
       />
       <Suspense fallback={<div className="h-[680px] animate-pulse rounded-xl bg-gray-200/60" />}>
         <LiveCall />

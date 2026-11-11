@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { Icon, cx } from "./ui";
 
 const NAV = [
-  { href: "/", label: "Live call", icon: "phone" as const },
   { href: "/dashboard", label: "Jobs", icon: "jobs" as const },
+  { href: "/call", label: "Test call", icon: "phone" as const },
+  { href: "/payments", label: "Payments", icon: "dollar" as const },
   { href: "/setup", label: "Agent setup", icon: "sliders" as const },
+  { href: "/go-live", label: "Go live", icon: "globe" as const },
 ];
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5">
+    <Link href="/dashboard" className="flex items-center gap-2.5">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white">
         <Icon name="shield" className="h-[18px] w-[18px]" />
       </span>
@@ -23,7 +25,7 @@ function Logo() {
 
 export function Sidebar({ businessName }: { businessName: string }) {
   const path = usePathname();
-  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const active = (href: string) => path === href || path.startsWith(`${href}/`);
   const initials = businessName
     .split(/\s+/)
     .filter((w) => /^[A-Za-z]/.test(w))
