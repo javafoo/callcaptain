@@ -1,92 +1,80 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { ApproveBill } from "@/components/approve-bill";
+import { ApproveWatch } from "@/components/approve-watch";
 import { BalancePay } from "@/components/balance-pay";
+import { NothingChargedView, ReceiptView, SecuredView } from "@/components/receipt-view";
 import { SaveCardPage } from "@/components/save-card-page";
-import { Icon } from "@/components/ui";
 import { getJob } from "@/lib/db";
-import { dollars, shortId } from "@/lib/format";
+import { dollars } from "@/lib/format";
+import { paymentsForJob, type Payment } from "@/lib/ledger";
+import { approvalSummary, SECURED, securedWith } from "@/lib/money";
 import { getBusiness } from "@/lib/settings";
 
-export const metadata = { title: "Your invoice" };
+export const metadata = { title: "Your bill" };
 
-/** What the homeowner opens from the text: the repair balance, payable with PayPal, Venmo, card or Pay Later. */
-async function Invoice({ params }: { params: PageProps<"/pay/[id]">["params"] }) {
+/** Money has moved and the job is closed: the page is the customer's receipt. */
+const RECEIPT = new Set(["completed", "paid", "cancelled_fee", "refunded"]);
+
+/**
+ * The customer's page for one job, from the call to the receipt, no sign-in (the job's id is the
+ * key): save a card on file, approve the final bill the technician sent, pay the balance above
+ * the hold, then the itemized receipt.
+ */
+async function CustomerPage({ params }: { params: PageProps<"/pay/[id]">["params"] }) {
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const b = await getBusiness(job.business_id);
+  const [b, payments] = await Promise.all([getBusiness(job.business_id), paymentsForJob(job.id).catch((): Payment[] => [])]);
+  const clientId = process.env.PAYPAL_CLIENT_ID ?? "";
+
   // Card on file requested: the same secure PayPal form the call screen shows.
-  if (job.status === "awaiting_card" || (job.status === "card_saved" && !job.final_cents)) {
-    return <SaveCardPage job={job} businessName={b.businessName} clientId={process.env.PAYPAL_CLIENT_ID ?? ""} />;
+  if (job.status === "awaiting_card") return <SaveCardPage job={job} businessName={b.businessName} clientId={clientId} />;
+
+  if (RECEIPT.has(job.status)) return <ReceiptView job={job} business={b.businessName} payments={payments} />;
+
+  // Approved a bill above the hold: the hold is applied and the balance is paid right here.
+  if (job.status === "balance_due") {
+    return (
+      <ReceiptView job={job} business={b.businessName} payments={payments}>
+        <BalancePay jobId={job.id} clientId={clientId} orderId={job.balance_order_id} paid={false} balance={dollars(job.balance_cents)} refresh />
+      </ReceiptView>
+    );
   }
-  if (!job.final_cents) notFound();
-  const onFile = job.secure_with === "card" && !job.authorization_id;
-  const paid = job.status === "paid";
-  const heldPaid = job.final_cents - (job.balance_cents ?? 0);
-  const issued = new Date(job.updated_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 
-  return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-[0_12px_40px_rgba(16,24,40,0.08)] ring-1 ring-gray-200">
-      <div className="bg-ink-900 px-6 py-6 text-white">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-            <Icon name="wrench" className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="font-semibold">{b.businessName}</p>
-            <p className="text-xs text-ink-300">Invoice {shortId(job.id)} · {issued}</p>
-          </div>
-        </div>
-        <p className="mt-6 text-sm text-ink-300">{paid ? "Paid in full" : "Balance due"}</p>
-        <p className="text-4xl font-semibold tracking-tight">{dollars(paid ? job.final_cents : job.balance_cents)}</p>
-      </div>
+  // The technician sent the final bill.
+  const bill = await approvalSummary(job, b, payments);
+  if (bill) return <ApproveBill jobId={job.id} bill={bill} clientId={clientId} via="link" />;
 
-      <div className="px-6 py-5">
-        <p className="text-sm text-gray-600">
-          Hi {job.customer_name ?? "there"}, thanks for trusting us with {job.issue ? <span className="text-gray-900">&ldquo;{job.issue.replace(/\.$/, "")}&rdquo;</span> : "your repair"}.
-          {job.tech_name ? ` ${job.tech_name} finished the work.` : ""}
-        </p>
+  // Secured and waiting for the final bill: it shows up here on its own.
+  if (SECURED.has(job.status) || job.status === "awaiting_approval") {
+    return (
+      <SecuredView job={job} business={b.businessName} method={securedWith(job, payments)}>
+        <ApproveWatch />
+      </SecuredView>
+    );
+  }
 
-        <table className="mt-5 w-full text-sm">
-          <tbody className="divide-y divide-gray-100">
-            <tr>
-              <td className="py-2.5 text-gray-600">Repair, parts and labor</td>
-              <td className="py-2.5 text-right tabular-nums text-gray-900">{dollars(job.final_cents)}</td>
-            </tr>
-            {onFile ? (
-              <tr>
-                <td className="py-2.5 text-gray-600">Charged to your card on file, with your approval</td>
-                <td className="py-2.5 text-right tabular-nums text-gray-900">−{dollars(job.captured_cents)}</td>
-              </tr>
-            ) : (
-              <tr>
-                <td className="py-2.5 text-gray-600">Service-call hold, already charged</td>
-                <td className="py-2.5 text-right tabular-nums text-gray-900">−{dollars(heldPaid)}</td>
-              </tr>
-            )}
-            <tr>
-              <td className="pt-3 font-semibold text-gray-900">{paid ? "Paid" : "Balance"}</td>
-              <td className="pt-3 text-right text-base font-semibold tabular-nums text-gray-900">{dollars(onFile ? 0 : job.balance_cents)}</td>
-            </tr>
-          </tbody>
-        </table>
+  if (job.status === "released") {
+    const card = job.secure_with === "card" && !job.authorization_id;
+    return (
+      <NothingChargedView
+        job={job}
+        business={b.businessName}
+        title="Nothing charged"
+        text={card ? "Your saved payment method was removed. Nothing was charged." : `Your ${dollars(job.fee_cents)} hold was released. Nothing was charged.`}
+      />
+    );
+  }
 
-        <div className="mt-6">
-          <BalancePay jobId={job.id} clientId={process.env.PAYPAL_CLIENT_ID ?? ""} orderId={job.balance_order_id} paid={paid} balance={dollars(job.balance_cents)} />
-        </div>
-      </div>
-      <div className="flex items-center justify-center gap-1.5 border-t border-gray-100 bg-gray-50 px-6 py-3 text-xs text-gray-500">
-        <Icon name="shield" className="h-3.5 w-3.5" /> Payments secured by PayPal · test mode
-      </div>
-    </div>
-  );
+  return <NothingChargedView job={job} business={b.businessName} title="Nothing to pay" text={`Nothing is due right now. ${b.businessName} sends your bill to this page after the visit.`} />;
 }
 
 export default function PayPage({ params }: PageProps<"/pay/[id]">) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
       <Suspense fallback={<div className="h-[560px] animate-pulse rounded-2xl bg-gray-200/60" />}>
-        <Invoice params={params} />
+        <CustomerPage params={params} />
       </Suspense>
     </main>
   );
