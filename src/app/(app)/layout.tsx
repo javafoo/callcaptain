@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Notifier } from "@/components/notifier";
-import { Sidebar } from "@/components/sidebar";
+import { Sidebar, SidebarPlaceholder } from "@/components/sidebar";
 import { currentBusiness } from "@/lib/workspace";
 
 async function Shell() {
@@ -11,7 +11,7 @@ async function Shell() {
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="min-h-screen">
-      <Suspense fallback={<Sidebar businessName="Your business" />}>
+      <Suspense fallback={<SidebarPlaceholder />}>
         <Shell />
       </Suspense>
       <div className="lg:pl-60">

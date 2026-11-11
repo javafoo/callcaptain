@@ -6,11 +6,7 @@ import { Card, Icon } from "@/components/ui";
 import { getJob } from "@/lib/db";
 import { canEdit, currentWorkspace } from "@/lib/workspace";
 
-export const metadata = { title: "On site · Call Captain" };
-
-// The app layout's sidebar reads the pathname outside <Suspense>, which a dynamic [id] can't
-// prerender; this page is per-job and per-workspace anyway, so it may render at request time.
-export const instant = false;
+export const metadata = { title: "On site" };
 
 /** The technician's phone on site: one job, big buttons, the final bill. Only for the job's own workspace. */
 async function OnSite({ params }: { params: PageProps<"/jobs/[id]">["params"] }) {
