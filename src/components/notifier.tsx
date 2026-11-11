@@ -81,17 +81,25 @@ function alertsFor(j: AlertJob): Alert[] {
   }
 
   if (j.status === "dispatched") {
-    add("dispatched", "dispatched", `${j.tech_name ?? "Technician"} dispatched · ${who(j)}`, join(place(j), j.eta && `Arriving in ${j.eta}`) || "On the way.");
+    add("dispatched", "dispatched", `${j.tech_name ?? "Technician"} dispatched · ${who(j)}`, join(j.eta && `Arriving in ${j.eta}`, place(j)) || "On the way.");
   }
 
-  // The technician's answer when Ava phoned them.
+  // The technician's answer when Ava phoned them. Without a yes, the visit stays secured and the
+  // caller needs a call back (nobody needs one if the job was cancelled meanwhile).
   const tech = j.tech_name ?? "Technician";
   const at = j.tech_ms ?? 0;
-  if (j.tech_status === "accepted") add(`tech:accepted:${at}`, "good", `${tech} accepted · ${who(j)}`, place(j) ? `On the way to ${place(j)}.` : "On the way.");
-  if (j.tech_status === "declined") add(`tech:declined:${at}`, "warn", `${tech} declined · ${who(j)}`, "Send someone else or call the customer.");
-  if (j.tech_status === "no_answer") add(`tech:no_answer:${at}`, "warn", `${tech} didn't answer · ${who(j)}`, "Ava's call went unanswered. Call them, or send someone else.");
-  if (j.tech_status === "failed") {
-    add(`tech:failed:${at}`, "warn", `Couldn't reach ${j.tech_name ?? "the technician"} · ${who(j)}`, "The call didn't go through. Check the technician's number in Agent setup.");
+  if (j.tech_status === "accepted") {
+    add(`tech:accepted:${at}`, "good", `${tech} accepted · ${who(j)}`, join(j.eta && `On the way, arriving in ${j.eta}`, place(j)) || "On the way.");
+  }
+  const stillSecured = j.status === "hold_placed" || j.status === "card_saved" || j.status === "dispatched";
+  if (stillSecured && (j.tech_status === "declined" || j.tech_status === "no_answer" || j.tech_status === "failed")) {
+    const what = j.tech_status === "declined" ? `${tech} can't take it` : j.tech_status === "no_answer" ? `${tech} didn't answer` : `Couldn't reach ${j.tech_name ?? "the technician"}`;
+    add(
+      `tech:${j.tech_status}:${at}`,
+      "warn",
+      `${what} · ${who(j)} needs a technician`,
+      `Call ${who(j)} back${j.callback_phone ? ` at ${formatPhone(j.callback_phone)}` : ""}. ${j.held ? "PayPal hold" : "Card on file"}, nothing charged.`,
+    );
   }
 
   // The customer approved the final bill on their own phone.
