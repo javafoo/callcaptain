@@ -56,7 +56,7 @@ function MoneyFlows({ fee, tripFee, agent }: { fee: string; tripFee: string; age
   );
 }
 
-export const metadata = { title: "Test call · Call Captain" };
+export const metadata = { title: "Test call" };
 
 export default function TestCallPage() {
   return (

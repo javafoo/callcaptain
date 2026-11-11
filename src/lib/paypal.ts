@@ -8,6 +8,7 @@ import { env } from "./env";
  *   /v2/payments/authorizations/{id}/capture → charge the final amount after the job
  *   /v2/payments/authorizations/{id}/void    → release the hold, nothing charged
  *   Orders v2, intent CAPTURE    → a separate balance payment (Pay Later eligible)
+ *   /v2/payments/captures/{id}/refund        → give money back, in full or in part
  *
  * Docs: https://developer.paypal.com/docs/api/orders/v2/ and /docs/api/payments/v2/
  */
@@ -196,6 +197,27 @@ export async function createBalanceOrder(jobId: string, cents: number, businessN
 
 export async function captureOrder(orderId: string): Promise<Order> {
   return pp<Order>(`/v2/checkout/orders/${orderId}/capture`, { method: "POST", body: {}, idempotencyKey: `capture-${orderId}` });
+}
+
+export type Refund = {
+  id: string;
+  /** COMPLETED, PENDING (finishes later), FAILED or CANCELLED. */
+  status: string;
+  amount?: { value: string; currency_code: string };
+  create_time?: string;
+};
+
+/**
+ * Give back part or all of a capture. The idempotency key makes a retried click or request
+ * return the same refund instead of refunding twice. PayPal refuses anything above what's
+ * left on the capture.
+ */
+export async function refundCapture(captureId: string, cents: number, idempotencyKey: string, noteToPayer?: string): Promise<Refund> {
+  return pp<Refund>(`/v2/payments/captures/${captureId}/refund`, {
+    method: "POST",
+    idempotencyKey,
+    body: { amount: usd(cents), ...(noteToPayer ? { note_to_payer: noteToPayer.slice(0, 255) } : {}) },
+  });
 }
 
 /** How a payment method reads in the dashboard and the ledger. */

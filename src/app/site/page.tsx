@@ -2,7 +2,7 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { currentWorkspace } from "@/lib/workspace";
 
-export const metadata = { title: "Harbor Plumbing & Heating · San Jose plumbers (demo site)" };
+export const metadata = { title: { absolute: "Harbor Plumbing & Heating · San Jose plumbers (demo site)" } };
 
 /**
  * A pretend contractor website, used two ways in the demo:

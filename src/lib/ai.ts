@@ -8,7 +8,7 @@ import { z } from "zod";
  * paid credits to swap models without touching code.
  */
 
-const MODEL = process.env.AI_MODEL || "openai/gpt-5-mini";
+export const MODEL = process.env.AI_MODEL || "openai/gpt-5-mini";
 
 const countySchema = z.object({
   county: z.string().describe('Exact US Census name, e.g. "Fairfax County", "Alexandria city", "District of Columbia"'),

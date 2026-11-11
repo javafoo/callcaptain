@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icon, cx } from "./ui";
 
 const NAV = [
-  { href: "/dashboard", label: "Jobs", icon: "jobs" as const },
+  { href: "/dashboard", label: "Jobs", icon: "jobs" as const, also: ["/jobs"] },
   { href: "/call", label: "Test call", icon: "phone" as const },
   { href: "/payments", label: "Payments", icon: "dollar" as const },
   { href: "/setup", label: "Agent setup", icon: "sliders" as const },
@@ -24,8 +24,20 @@ function Logo() {
 }
 
 export function Sidebar({ businessName }: { businessName: string }) {
-  const path = usePathname();
-  const active = (href: string) => path === href || path.startsWith(`${href}/`);
+  return <SidebarView businessName={businessName} path={usePathname()} />;
+}
+
+/** The same chrome with nothing highlighted, for loading states (it never reads the URL). */
+export function SidebarPlaceholder() {
+  return <SidebarView businessName="Your business" path={null} />;
+}
+
+function SidebarView({ businessName, path }: { businessName: string; path: string | null }) {
+  const under = (href: string) => path !== null && (path === href || path.startsWith(`${href}/`));
+  const active = (href: string) => {
+    const item = NAV.find((n) => n.href === href);
+    return under(href) || Boolean(item && "also" in item && item.also?.some(under));
+  };
   const initials = businessName
     .split(/\s+/)
     .filter((w) => /^[A-Za-z]/.test(w))

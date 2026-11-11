@@ -1,10 +1,32 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PayPalPay } from "./paypal-hold";
 import { Icon } from "./ui";
 
-export function BalancePay({ jobId, clientId, orderId, paid, balance }: { jobId: string; clientId: string; orderId: string | null; paid: boolean; balance: string }) {
+/**
+ * The balance above the hold, paid on the customer's screen with PayPal, Venmo, a card or
+ * Pay Later. `onPaid` lets a parent move on; `refresh` re-renders a server page (the receipt).
+ */
+export function BalancePay({
+  jobId,
+  clientId,
+  orderId,
+  paid,
+  balance,
+  onPaid,
+  refresh,
+}: {
+  jobId: string;
+  clientId: string;
+  orderId: string | null;
+  paid: boolean;
+  balance: string;
+  onPaid?: () => void;
+  refresh?: boolean;
+}) {
+  const router = useRouter();
   const [done, setDone] = useState(paid);
   if (done) {
     return (
@@ -27,9 +49,11 @@ export function BalancePay({ jobId, clientId, orderId, paid, balance }: { jobId:
         payLater
         finalize={async (approved) => {
           const res = await fetch(`/api/jobs/${jobId}/balance`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: approved }) });
-          const body = (await res.json()) as { error?: string };
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
           if (!res.ok) throw new Error(body.error ?? "Payment didn't go through.");
           setDone(true);
+          onPaid?.();
+          if (refresh) router.refresh();
         }}
       />
     </div>
