@@ -4,6 +4,7 @@ import { env } from "./env";
  * The few SignalWire REST calls this app needs (https://signalwire.com/docs/apis):
  *  - guest tokens so a browser can dial exactly one address (Fabric guest tokens)
  *  - calling.ai_message to tell the live agent the moment PayPal approves a hold
+ *  - dial, to phone the on-call technician from the after-hours line
  */
 
 async function sw<T>(path: string, body: unknown): Promise<T> {
@@ -44,4 +45,50 @@ export async function tellAgent(callId: string, text: string): Promise<void> {
     id: callId,
     params: { role: "user", message_text: text },
   });
+}
+
+/** Call states SignalWire can report to a dial's status_url (call state status callback). */
+export type CallState = "created" | "ringing" | "answered" | "ending" | "ended";
+
+export type OutboundCall = {
+  /** E.164 number we own; also shown as the caller ID. */
+  from: string;
+  /** E.164 destination. */
+  to: string;
+  /** SWML webhook SignalWire fetches when the call connects. */
+  url: string;
+  /** Receives `calling.call.state` callbacks for `statusEvents`. */
+  statusUrl: string;
+  statusEvents: CallState[];
+  ringSeconds: number;
+  /** SignalWire rejects the call if the route costs more per minute than this, in dollars. */
+  maxPricePerMinute: number;
+};
+
+/** The exact `dial` command we send, kept separate so it can be inspected without placing a call. */
+export function dialCommand(call: OutboundCall) {
+  return {
+    command: "dial",
+    params: {
+      from: call.from,
+      to: call.to,
+      caller_id: call.from,
+      url: call.url,
+      status_url: call.statusUrl,
+      status_events: call.statusEvents,
+      timeout: call.ringSeconds,
+      max_price_per_minute: call.maxPricePerMinute,
+    },
+  };
+}
+
+/**
+ * POST /api/calling/calls { command: "dial" }: place a phone call that runs the SWML at `url`
+ * (https://signalwire.com/docs/apis/rest/calls/call-commands). Returns the new call's id.
+ */
+export async function placeCall(call: OutboundCall): Promise<{ id: string }> {
+  const res = await sw<{ id?: string; call_id?: string }>("/api/calling/calls", dialCommand(call));
+  const id = res.id ?? res.call_id;
+  if (!id) throw new Error("SignalWire did not return a call id");
+  return { id };
 }

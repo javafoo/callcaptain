@@ -19,8 +19,21 @@ const steps = (card: boolean) => [
   { label: "Dispatched", icon: "truck" as const },
 ];
 
+/** The agent's phone call to the technician, as one line for the caller's screens. */
+export function techLine(job: Job | null): { tone: "calling" | "accepted" | "unavailable"; text: string } | null {
+  if (!job?.tech_status || !job.tech_name) return null;
+  if (job.tech_status === "calling") return { tone: "calling", text: `Calling ${job.tech_name}…` };
+  if (job.tech_status === "accepted") return { tone: "accepted", text: `${job.tech_name} accepted${job.eta ? ` · ${job.eta.replace(/ minutes$/, " min")}` : ""}` };
+  return { tone: "unavailable", text: `${job.tech_name} can't make it · the owner was alerted` };
+}
+
+/** The dispatch system's notices to the agent arrive as "user" turns; they aren't the caller talking. */
+export const isNotice = (text: string) => text.startsWith("(Notice from the ");
+
 function progress(job: Job | null): number {
   if (!job) return -1;
+  // Dispatch isn't done while the agent is still getting the technician on the line.
+  if (job.status === "dispatched" && job.tech_status === "calling") return 3;
   if (["dispatched", "completed", "balance_due", "paid", "cancelled_fee"].includes(job.status)) return 4;
   if (job.status === "hold_placed" || job.status === "card_saved") return 3;
   if (job.status === "awaiting_hold" || job.status === "awaiting_card") return 2;
@@ -72,7 +85,8 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
   const seconds = liveAt && now ? Math.max(0, Math.floor((now - liveAt) / 1000)) : 0;
   const active = phase === "connecting" || phase === "live";
   const step = progress(job);
-  const transcript = (job?.events ?? []).filter((e) => e.kind === "caller" || e.kind === "agent_said");
+  const transcript = (job?.events ?? []).filter((e) => (e.kind === "caller" && !isNotice(e.text)) || e.kind === "agent_said");
+  const tech = techLine(job);
   const activity = (job?.events ?? []).filter((e) => !["caller", "agent_said"].includes(e.kind)).slice().reverse();
   const showPayPal = job?.status === "awaiting_hold" && job.hold_method === "paypal" && job.order_id;
   const keypadUnlocked = KEYPAD_STEPS.some((s) => s.key === job?.pay_step) || job?.pay_step === "payment-processing" || keypadFallback;
@@ -128,6 +142,23 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
                 <div className="flex items-center gap-2 rounded-2xl bg-brand-500/15 p-3 text-left text-sm text-brand-100 ring-1 ring-brand-500/30">
                   <Icon name="shield" className="h-5 w-5 shrink-0 text-brand-500" />
                   {card ? "Card saved with PayPal. Nothing charged." : `${dollars(job?.fee_cents)} hold approved. Nothing charged.`}
+                </div>
+              )}
+              {tech && phase === "live" && (
+                <div
+                  className={cx(
+                    "mt-2 flex items-center gap-2 rounded-2xl p-3 text-left text-sm ring-1",
+                    tech.tone === "calling" && "bg-amber-400/10 text-amber-100 ring-amber-400/30",
+                    tech.tone === "accepted" && "bg-brand-500/15 text-brand-100 ring-brand-500/30",
+                    tech.tone === "unavailable" && "bg-rose-400/10 text-rose-100 ring-rose-400/30",
+                  )}
+                >
+                  {tech.tone === "calling" ? (
+                    <span className="mx-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+                  ) : (
+                    <Icon name={tech.tone === "accepted" ? "truck" : "phone"} className={cx("h-5 w-5 shrink-0", tech.tone === "accepted" ? "text-brand-500" : "text-rose-300")} />
+                  )}
+                  {tech.text}
                 </div>
               )}
             </div>
@@ -223,7 +254,19 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
                 { icon: "pin" as const, label: "Service address", value: job.service_address ? `${job.service_address}${job.zip && !job.service_address.includes(job.zip) ? ` ${job.zip}` : ""}` : null },
                 { icon: "wrench" as const, label: "Problem", value: job.issue },
                 { icon: "phone" as const, label: "Callback", value: job.callback_phone },
-                { icon: "truck" as const, label: "Technician", value: job.tech_name ? `${job.tech_name}, ${job.eta}` : job.status === "scheduled" ? job.eta : null },
+                {
+                  icon: "truck" as const,
+                  label: "Technician",
+                  value: tech
+                    ? tech.text
+                    : job.tech_name
+                      ? `${job.tech_name}, ${job.eta}`
+                      : job.status === "scheduled"
+                        ? job.eta
+                        : job.eta && ["on_call", "awaiting_hold", "awaiting_card", "hold_placed", "card_saved"].includes(job.status)
+                          ? `${business.technician} can be there ${/^(in|within|by)\b/i.test(job.eta) ? job.eta : `in ${job.eta}`}`
+                          : null,
+                },
               ].map((r) => (
                 <div key={r.label} className="flex gap-3 bg-white px-6 py-3.5">
                   <Icon name={r.icon} className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
