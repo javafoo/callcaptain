@@ -50,6 +50,9 @@ export type Business = {
   technicianPhone: string;
   /** The owner's own phones (E.164). Calls from these numbers to the phone line land in this workspace. */
   testPhones: string[];
+  /** Where the on-call technician starts from (5-digit ZIP), for arrival estimates. "" = always use `eta`. */
+  baseZip: string;
+  /** The arrival window the agent quotes when it can't estimate one from the caller's ZIP. */
   eta: string;
   morningSlot: string;
   languages: string[];
@@ -72,6 +75,7 @@ export const DEFAULT_BUSINESS: Business = {
   technician: "Marcus",
   technicianPhone: "",
   testPhones: [],
+  baseZip: "95112",
   eta: "35 to 45 minutes",
   morningSlot: "tomorrow between 7 and 9 AM",
   languages: ["en", "es"],

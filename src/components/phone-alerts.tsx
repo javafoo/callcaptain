@@ -43,7 +43,7 @@ function explain(state: AlertsState, platform: Platform, ready: boolean): string
     case "unsupported":
       return platform === "ios-app"
         ? "Update this iPhone to iOS 16.4 or later to get alerts."
-        : "This browser can't show alerts. Use Chrome, Edge, Firefox or Safari, or set up your phone with the code.";
+        : "This browser can't show alerts. Use Chrome, Edge, Firefox or Safari, or open Call Captain on your phone.";
   }
 }
 
@@ -52,12 +52,13 @@ const message = (e: unknown) => (e instanceof Error && e.message ? e.message : "
 const noSubscribe = () => () => {};
 
 export function PhoneAlerts({
-  workspace,
+  accessToken,
   demo,
   publicKey,
   initialDevices,
 }: {
-  workspace: string | null;
+  /** Private: only for the QR code and the copied link. Never render it as text. */
+  accessToken: string | null;
   demo: boolean;
   publicKey: string | null;
   initialDevices: AlertDevice[];
@@ -67,7 +68,6 @@ export function PhoneAlerts({
   const [thisDevice, setThisDevice] = useState<string | null>(null);
   const [busy, setBusy] = useState<"on" | "off" | "test" | null>(null);
   const [note, setNote] = useState<Note>(null);
-  const [copied, setCopied] = useState(false);
   const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => null);
   const platform = useSyncExternalStore<Platform>(
     noSubscribe,
@@ -154,14 +154,16 @@ export function PhoneAlerts({
 
   const ready = Boolean(publicKey);
   const status = STATUS[state];
-  const link = origin && workspace && !demo ? `${origin}/dashboard?workspace=${workspace}` : null;
+  // Without an access token there's nothing to open on a phone, so that half of the card goes away.
+  const phone = demo ? "demo" : accessToken ? "code" : null;
+  const link = origin && accessToken && !demo ? `${origin}/dashboard?workspace=${encodeURIComponent(accessToken)}` : null;
 
   return (
     <Card>
       <CardHeader title="Get alerts on your phone" subtitle="New emergencies, secured visits, dispatches and payments, the moment they happen." />
-      <div className="grid gap-6 p-5 md:grid-cols-2 md:gap-0 md:divide-x md:divide-gray-100">
+      <div className={cx("grid gap-6 p-5", phone && "md:grid-cols-2 md:gap-0 md:divide-x md:divide-gray-100")}>
         {/* This device */}
-        <section aria-labelledby="alerts-device" className="flex flex-col gap-4 md:pr-6">
+        <section aria-labelledby="alerts-device" className={cx("flex flex-col gap-4", phone && "md:pr-6")}>
           <div className="flex items-center justify-between gap-3">
             <h3 id="alerts-device" className="text-sm font-semibold text-gray-900">
               This device
@@ -218,69 +220,78 @@ export function PhoneAlerts({
           </div>
         </section>
 
-        {/* Open on your phone */}
-        <section aria-labelledby="alerts-phone" className="flex flex-col gap-4 border-t border-gray-100 pt-6 md:border-t-0 md:pl-6 md:pt-0">
-          <h3 id="alerts-phone" className="text-sm font-semibold text-gray-900">
-            Open on your phone
-          </h3>
-          {demo ? (
-            <p className="text-sm text-gray-600">This is the public demo line. To get its alerts on a phone, open your admin link there.</p>
-          ) : (
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <div className="flex shrink-0 flex-col items-center gap-2">
-                <div className="flex h-[148px] w-[148px] items-center justify-center rounded-xl border border-gray-200 bg-white p-2">
-                  {link ? (
-                    <QRCodeSVG
-                      value={link}
-                      size={130}
-                      level="Q"
-                      marginSize={0}
-                      fgColor="#0d1f33"
-                      title="Code that opens Call Captain on your phone"
-                      imageSettings={{ src: "/icons/icon-192.png", height: 26, width: 26, excavate: true }}
-                    />
-                  ) : (
-                    <div className="h-[130px] w-[130px] animate-pulse rounded-lg bg-gray-100" />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={!link}
-                  onClick={() => {
-                    if (!link) return;
-                    void navigator.clipboard.writeText(link).then(() => {
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    });
-                  }}
-                  className="text-xs font-semibold text-brand-700 hover:text-brand-600 disabled:opacity-50"
-                >
-                  {copied ? "Link copied" : "Copy link"}
-                </button>
-              </div>
-              <div className="flex flex-col gap-3 text-sm text-gray-600">
-                <div>
-                  <p className="font-medium text-gray-900">iPhone</p>
-                  <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-                    <li>Scan the code with the Camera and open the link in Safari.</li>
-                    <li>Tap Share, then Add to Home Screen.</li>
-                    <li>Open Call Captain from your Home Screen and turn on alerts.</li>
-                  </ol>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Android</p>
-                  <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-                    <li>Scan the code and open the link in Chrome.</li>
-                    <li>Tap Install app (or ⋮, then Add to Home screen).</li>
-                    <li>Open Call Captain and turn on alerts.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          )}
-          {!demo && <p className="text-xs text-gray-500">The link opens this workspace with no sign-in. Share it only with your own team.</p>}
-        </section>
+        {phone && <OpenOnPhone demo={phone === "demo"} link={link} />}
       </div>
     </Card>
+  );
+}
+
+/** The code that opens this workspace on the owner's phone, with install steps for iPhone and Android. */
+function OpenOnPhone({ demo, link }: { demo: boolean; link: string | null }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <section aria-labelledby="alerts-phone" className="flex flex-col gap-4 border-t border-gray-100 pt-6 md:border-t-0 md:pl-6 md:pt-0">
+      <h3 id="alerts-phone" className="text-sm font-semibold text-gray-900">
+        Open on your phone
+      </h3>
+      {demo ? (
+        <p className="text-sm text-gray-600">This is the public demo line. To get its alerts on a phone, open your admin link there.</p>
+      ) : (
+        <>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="flex shrink-0 flex-col items-center gap-2">
+              <div className="flex h-[148px] w-[148px] items-center justify-center rounded-xl border border-gray-200 bg-white p-2">
+                {link ? (
+                  <QRCodeSVG
+                    value={link}
+                    size={130}
+                    level="Q"
+                    marginSize={0}
+                    fgColor="#0d1f33"
+                    title="Code that opens Call Captain on your phone"
+                    imageSettings={{ src: "/icons/icon-192.png", height: 26, width: 26, excavate: true }}
+                  />
+                ) : (
+                  <div className="h-[130px] w-[130px] animate-pulse rounded-lg bg-gray-100" />
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={!link}
+                onClick={() => {
+                  if (!link) return;
+                  void navigator.clipboard.writeText(link).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+                }}
+                className="text-xs font-semibold text-brand-700 hover:text-brand-600 disabled:opacity-50"
+              >
+                {copied ? "Link copied" : "Copy link"}
+              </button>
+            </div>
+            <div className="flex flex-col gap-3 text-sm text-gray-600">
+              <div>
+                <p className="font-medium text-gray-900">iPhone</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+                  <li>Scan the code with the Camera and open the link in Safari.</li>
+                  <li>Tap Share, then Add to Home Screen.</li>
+                  <li>Open Call Captain from your Home Screen and turn on alerts.</li>
+                </ol>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Android</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+                  <li>Scan the code and open the link in Chrome.</li>
+                  <li>Tap Install app (or ⋮, then Add to Home screen).</li>
+                  <li>Open Call Captain and turn on alerts.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">The code opens this workspace with no sign-in. Share it only with your own team.</p>
+        </>
+      )}
+    </section>
   );
 }

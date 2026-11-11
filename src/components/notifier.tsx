@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from "react";
 import { dollars } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import type { AlertFeed, AlertJob } from "@/lib/push";
@@ -212,23 +212,19 @@ function offerDismissed(): boolean {
   }
 }
 
+type Offer = { publicKey: string; step: "ask" | "busy" | "on" | "error"; error?: string };
+
 export function Notifier() {
-  const pathname = usePathname();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const hidden = useSyncExternalStore(subscribeVisibility, () => document.visibilityState === "hidden", () => false);
-  const [offer, setOffer] = useState<{ publicKey: string; step: "ask" | "busy" | "on" | "error"; error?: string } | null>(null);
+  const [offer, setOffer] = useState<Offer | null>(null);
   // What screen readers hear: the new alerts' text, without the buttons around it.
   const [announcement, setAnnouncement] = useState("");
   const audio = useRef<AudioContext | null>(null);
   const nextId = useRef(1);
   const list = useRef<HTMLOListElement>(null);
-  const path = useRef(pathname);
-
-  useEffect(() => {
-    path.current = pathname;
-  }, [pathname]);
 
   const dismiss = useCallback((id: number) => {
     setToasts((all) => all.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
@@ -264,7 +260,7 @@ export function Notifier() {
     const seen = new Set<string>();
 
     const announce = async (fresh: Alert[]) => {
-      if (quietPage(path.current)) return;
+      if (quietPage(window.location.pathname)) return;
       const added = fresh.map((a): Toast => ({ ...a, id: nextId.current++, leaving: false }));
       setToasts((all) => [...all, ...added].slice(-MAX_TOASTS));
       setAnnouncement(fresh.map((a) => `${a.title}. ${a.body}`).join(" "));
@@ -387,8 +383,6 @@ export function Notifier() {
   };
 
   const paused = hovered || focused || hidden;
-  // Go live has the full alerts setup, so the offer stays out of its way (and off the test call).
-  const showOffer = offer && pathname !== "/go-live" && !quietPage(pathname);
 
   return (
     <section
@@ -415,41 +409,53 @@ export function Notifier() {
         ))}
       </ol>
 
-      {showOffer && (
-        <div className="pointer-events-auto w-full max-w-sm rounded-xl border border-gray-200 bg-white p-4 shadow-lg ring-1 ring-black/5 sm:max-w-none">
-          {offer.step === "on" ? (
-            <p role="status" className="flex items-center gap-2 text-sm font-medium text-gray-900">
-              <Icon name="check" className="h-4 w-4 text-brand-600" /> Alerts are on for this phone.
-            </p>
-          ) : (
-            <>
-              <div className="flex gap-3">
-                <span className={cx("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1", TONES.secured.badge)}>
-                  <Icon name="shield" className="h-[18px] w-[18px]" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">Turn on alerts for this phone?</p>
-                  <p className="mt-0.5 text-sm text-gray-600">Know the moment Ava secures a job, even with the app closed.</p>
-                  {offer.step === "error" && (
-                    <p role="alert" className="mt-1.5 text-sm text-red-700">
-                      {offer.error}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={declineOffer}>
-                  Not now
-                </Button>
-                <Button type="button" onClick={() => void acceptOffer()} disabled={offer.step === "busy"}>
-                  {offer.step === "busy" ? "Turning on…" : "Turn on alerts"}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+      {offer && (
+        // The offer only exists in the browser, but reading the URL still belongs inside Suspense.
+        <Suspense fallback={null}>
+          <OfferCard offer={offer} onAccept={() => void acceptOffer()} onDecline={declineOffer} />
+        </Suspense>
       )}
     </section>
+  );
+}
+
+/** In the installed app: one tap to turn on alerts. Go live has the full setup, so it stays off there (and off the test call). */
+function OfferCard({ offer, onAccept, onDecline }: { offer: Offer; onAccept: () => void; onDecline: () => void }) {
+  const pathname = usePathname();
+  if (pathname === "/go-live" || quietPage(pathname)) return null;
+  return (
+    <div className="pointer-events-auto w-full max-w-sm rounded-xl border border-gray-200 bg-white p-4 shadow-lg ring-1 ring-black/5 sm:max-w-none">
+      {offer.step === "on" ? (
+        <p role="status" className="flex items-center gap-2 text-sm font-medium text-gray-900">
+          <Icon name="check" className="h-4 w-4 text-brand-600" /> Alerts are on for this phone.
+        </p>
+      ) : (
+        <>
+          <div className="flex gap-3">
+            <span className={cx("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1", TONES.secured.badge)}>
+              <Icon name="shield" className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">Turn on alerts for this phone?</p>
+              <p className="mt-0.5 text-sm text-gray-600">Know the moment Ava secures a job, even with the app closed.</p>
+              {offer.step === "error" && (
+                <p role="alert" className="mt-1.5 text-sm text-red-700">
+                  {offer.error}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onDecline}>
+              Not now
+            </Button>
+            <Button type="button" onClick={onAccept} disabled={offer.step === "busy"}>
+              {offer.step === "busy" ? "Turning on…" : "Turn on alerts"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

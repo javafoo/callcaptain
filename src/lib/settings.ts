@@ -32,6 +32,13 @@ export async function getBusiness(workspace: string): Promise<Business> {
   return { ...DEFAULT_BUSINESS, ...(rows[0]?.data ?? {}) };
 }
 
+/** Has the owner saved their own Agent setup yet (rather than running on the defaults)? */
+export async function hasSavedBusiness(workspace: string): Promise<boolean> {
+  await ensure();
+  const rows = (await sql().query(`SELECT 1 FROM businesses WHERE id = $1`, [workspace])) as unknown[];
+  return rows.length > 0;
+}
+
 /** A call to the phone line from one of an owner's registered phones lands in their workspace. */
 export async function workspaceForCaller(phone: string | null | undefined): Promise<string | null> {
   const e164 = toE164(phone);
@@ -84,6 +91,7 @@ export function sanitize(input: Record<string, unknown>): Business {
       .filter((p): p is string => Boolean(p))
       .filter((p, i, all) => all.indexOf(p) === i)
       .slice(0, 5),
+    baseZip: /^\d{5}$/.test(String(input.baseZip ?? "").trim()) ? String(input.baseZip).trim() : "",
     eta: clean(input.eta, 40, d.eta),
     morningSlot: clean(input.morningSlot, 60, d.morningSlot),
     languages: langs.filter((c) => known.has(c)).length ? langs.filter((c) => known.has(c)) : ["en"],

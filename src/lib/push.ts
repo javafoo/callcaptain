@@ -313,7 +313,10 @@ export type AlertFeed = { now: number; jobs: AlertJob[] };
 /** Overlap between polls, so a write that committed late is still picked up on the next poll. */
 const FEED_OVERLAP = "30 seconds";
 
-/** Without `sinceMs`: the 100 most recently changed jobs. With it: the jobs changed since then. */
+/**
+ * Without `sinceMs`: the 100 most recently changed jobs. With it: the jobs changed since then.
+ * Sample-night jobs never alert, here or by push.
+ */
 export async function alertFeed(businessId: string, sinceMs: number | null): Promise<AlertFeed> {
   await ensureSchema();
   const rows = (await client().query(
@@ -328,7 +331,8 @@ export async function alertFeed(businessId: string, sinceMs: number | null): Pro
               floor(extract(epoch FROM tech_updated_at) * 1000)::bigint AS tech_ms, approval_cents,
               approved_at IS NOT NULL AS approved, captured_cents, refunded_cents, balance_cents
        FROM jobs
-       WHERE business_id = $1 AND ($2::float8 IS NULL OR updated_at > to_timestamp($2::float8 / 1000) - interval '${FEED_OVERLAP}')
+       WHERE business_id = $1 AND NOT sample
+         AND ($2::float8 IS NULL OR updated_at > to_timestamp($2::float8 / 1000) - interval '${FEED_OVERLAP}')
        ORDER BY updated_at DESC
        LIMIT 100
      ) j`,

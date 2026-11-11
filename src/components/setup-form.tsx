@@ -22,6 +22,7 @@ type Form = {
   knowledge: string;
   technician: string;
   technicianPhone: string;
+  baseZip: string;
   eta: string;
   morningSlot: string;
   languages: string[];
@@ -43,6 +44,7 @@ const toForm = (b: Business): Form => ({
   knowledge: b.knowledge,
   technician: b.technician,
   technicianPhone: b.technicianPhone ? formatPhone(b.technicianPhone) : "",
+  baseZip: b.baseZip,
   eta: b.eta,
   morningSlot: b.morningSlot,
   languages: b.languages,
@@ -390,7 +392,17 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
                 placeholder="(408) 555-0199"
               />
             </Field>
-            <Field label="Arrival window">
+            <Field label="Tech starts from (ZIP)" hint="The agent estimates arrival from here to each caller's ZIP. Usually the on-call tech's home ZIP at night.">
+              <input
+                className={inputClass}
+                inputMode="numeric"
+                maxLength={5}
+                value={form.baseZip}
+                onChange={(e) => set("baseZip", e.target.value.replace(/\D/g, "").slice(0, 5))}
+                placeholder="95112"
+              />
+            </Field>
+            <Field label="Default arrival window" hint="Quoted when the caller's ZIP can't be placed.">
               <input className={inputClass} value={form.eta} onChange={(e) => set("eta", e.target.value)} />
             </Field>
             <Field label="First morning slot" hint="Offered when a caller doesn't want the hold." className="sm:col-span-2">
@@ -458,9 +470,8 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
               </li>
               <li className="flex gap-2">
                 <Icon name="truck" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
-                {form.technicianPhone.replace(/\D/g, "").length >= 10
-                  ? `Phones ${form.technician || "your tech"} to dispatch, ${form.eta}`
-                  : `Sends ${form.technician || "your tech"}, ${form.eta}`}
+                {form.technicianPhone.replace(/\D/g, "").length >= 10 ? `Phones ${form.technician || "your tech"} to dispatch` : `Sends ${form.technician || "your tech"}`}
+                {form.baseZip.length === 5 ? ", with an arrival estimate from each caller's ZIP" : `, ${form.eta}`}
               </li>
             </ul>
           </div>

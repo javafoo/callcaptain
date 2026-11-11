@@ -4,17 +4,18 @@ import { GoLiveNotifications } from "@/components/go-live-notifications";
 import { GoLivePhone } from "@/components/go-live-phone";
 import { PageHeader } from "@/components/ui";
 import { phoneLine } from "@/lib/phone";
-import { currentBusiness } from "@/lib/workspace";
+import { currentAccessToken, currentBusiness } from "@/lib/workspace";
 
-export const metadata = { title: "Go live · Call Captain" };
+export const metadata = { title: "Go live" };
 
 async function Sections() {
-  const { workspace, business, editable } = await currentBusiness();
+  const [{ workspace, business, editable }, accessToken] = await Promise.all([currentBusiness(), currentAccessToken()]);
   return (
     <div className="grid max-w-4xl gap-6">
       <GoLivePhone workspace={workspace} line={phoneLine()} testPhones={business.testPhones} editable={editable} />
       <EmbedSnippet workspace={workspace} />
-      <GoLiveNotifications workspace={workspace} />
+      {/* The private access token opens this workspace on the owner's phone; never show it as text or put it in the embed snippet. */}
+      <GoLiveNotifications workspace={workspace} accessToken={accessToken} />
     </div>
   );
 }

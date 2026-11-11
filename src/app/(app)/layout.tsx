@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Notifier } from "@/components/notifier";
-import { Sidebar } from "@/components/sidebar";
+import { Sidebar, SidebarPlaceholder } from "@/components/sidebar";
 import { currentBusiness } from "@/lib/workspace";
 
 /** The owner app installs to the Home Screen (src/app/manifest.ts), where iPhone allows alerts. */
@@ -24,7 +24,7 @@ async function Shell() {
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="min-h-screen">
-      <Suspense fallback={<Sidebar businessName="Your business" />}>
+      <Suspense fallback={<SidebarPlaceholder />}>
         <Shell />
       </Suspense>
       <div className="lg:pl-60">

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { areaToCounties } from "@/lib/ai";
 import { countyKey, type County } from "@/lib/business";
-import { getBusiness, resetBusiness, sanitize, saveBusiness, toInput } from "@/lib/settings";
+import { getBusiness, hasSavedBusiness, resetBusiness, sanitize, saveBusiness, toInput } from "@/lib/settings";
 import { canEdit, currentWorkspace } from "@/lib/workspace";
 
 export const maxDuration = 60;
@@ -12,8 +12,9 @@ const sameCounties = (a: County[], b: County[]) => a.map(countyKey).sort().join(
 export async function GET() {
   const workspace = await currentWorkspace();
   if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 401 });
+  const [business, editable, saved] = await Promise.all([getBusiness(workspace), canEdit(workspace), hasSavedBusiness(workspace)]);
   return NextResponse.json(
-    { business: await getBusiness(workspace), workspace, editable: await canEdit(workspace) },
+    { business, workspace, editable, saved },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

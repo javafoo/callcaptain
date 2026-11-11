@@ -1,14 +1,22 @@
 import { cookies } from "next/headers";
 import { DEFAULT_BUSINESS, type Business } from "./business";
 import { getBusiness } from "./settings";
-import { ADMIN_COOKIE, DEMO_WS, WS_COOKIE, adminToken, isWorkspaceId } from "./workspace-id";
+import { ADMIN_COOKIE, DEMO_WS, WS_COOKIE, adminToken, readWorkspaceToken } from "./workspace-id";
 
 export { DEMO_WS, isWorkspaceId } from "./workspace-id";
 
-/** The visitor's workspace, from the cookie the proxy sets. Null outside a browser request. */
+/** The visitor's workspace, from the signed cookie the proxy sets. Null outside a browser request. */
 export async function currentWorkspace(): Promise<string | null> {
-  const value = (await cookies()).get(WS_COOKIE)?.value;
-  return isWorkspaceId(value) ? value : null;
+  return readWorkspaceToken((await cookies()).get(WS_COOKIE)?.value);
+}
+
+/**
+ * The visitor's private access token, for "open on your phone" links (`/dashboard?workspace=<token>`).
+ * Never put it in anything public, like the website embed snippet (that uses the plain workspace id).
+ */
+export async function currentAccessToken(): Promise<string | null> {
+  const token = (await cookies()).get(WS_COOKIE)?.value ?? null;
+  return (await readWorkspaceToken(token)) ? token : null;
 }
 
 export async function isAdmin(): Promise<boolean> {
