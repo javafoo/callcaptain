@@ -180,5 +180,5 @@ export const DEFAULT_VOICE_ID = "2747b6cf-fa34-460c-97db-267566918881";
 /** SWML voice string: cartesia.<voice id>:sonic-2 (signalwire.com/docs/platform/voice/tts/cartesia). */
 export function voiceString(id: string): string {
   const known = VOICES.some((v) => v.id === id) ? id : DEFAULT_VOICE_ID;
-  return `cartesia.${known}:sonic-2`;
+  return `cartesia.${known}:sonic-3`;
 }

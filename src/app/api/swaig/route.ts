@@ -75,32 +75,33 @@ export async function POST(req: Request) {
         );
       }
 
+      case "take_card_on_keypad":
+        // Phone calls: hand the call to SignalWire's secure keypad. Web calls never get this function
+        // (SignalWire drops a browser call on that hand-off); if an old session asks, show the card form.
+        if (job.channel !== "web") {
+          if (job.status === "out_of_area") return outOfArea();
+          if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
+          job = await updateJob(
+            job.id,
+            { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
+            event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."),
+          );
+          return reply("Handing the caller to the secure keypad now.", [keypadPayAction(job, b, originOf(req), env.webhookSecret)]);
+        }
+      // falls through
       case "start_paypal_hold": {
         if (job.status === "out_of_area") return outOfArea();
         if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
         job = await requestPayPalHold(job, b);
         return reply(
-          `The PayPal button for the ${dollars(job.fee_cents)} hold is now on the caller's screen. Ask them to tap it and approve with PayPal, Venmo or a card. You will get a notice the moment it is approved. Meanwhile, give one practical tip.`,
+          `The PayPal button for the ${dollars(job.fee_cents)} hold is now on the caller's screen. Ask them to approve with PayPal or Venmo, or tap "Debit or Credit Card" to type a card. You will get a notice the moment it is approved. Meanwhile, give one practical tip.`,
         );
-      }
-
-      case "take_card_on_keypad": {
-        if (job.status === "out_of_area") return outOfArea();
-        if (HELD.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
-        job = await updateJob(
-          job.id,
-          { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
-          event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."),
-        );
-        return reply("Handing the caller to the secure keypad now.", [
-          keypadPayAction(job, b, originOf(req), env.webhookSecret),
-        ]);
       }
 
       case "check_hold": {
         if (job.status === "hold_placed") return reply("Approved. Thank them and call dispatch_technician now.");
         if (job.status === "dispatched") return reply(`Already approved and ${job.tech_name} is on the way, arriving in ${job.eta}.`);
-        return reply("Not approved yet. Ask if the PayPal window opened, and offer the keypad if it's giving them trouble.");
+        return reply(job.channel === "web" ? 'Not approved yet. Ask if the PayPal window opened. If it is giving them trouble, the "Debit or Credit Card" button works too.' : "Not approved yet. Offer to try the keypad again, or the morning slot.");
       }
 
       case "dispatch_technician": {

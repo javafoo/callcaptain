@@ -27,14 +27,14 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
   const paymentStep = web
     ? [
         `When the caller agrees to the hold, call start_paypal_hold. A secure PayPal button then appears on their screen.`,
-        `Tell them they can approve it with PayPal, Venmo or a card, and that it is a hold, not a charge.`,
-        `If they would rather not use the button, offer to take a card on their keypad instead and call take_card_on_keypad.`,
+        `Tell them they can approve it with PayPal, Venmo, or a card: for a card, they tap "Debit or Credit Card" under the PayPal button. Remind them it is a hold, not a charge.`,
+        `If they want to type a card, point them to that "Debit or Credit Card" button. It is a secure PayPal card form, so you never see or hear the number.`,
       ]
     : [`When the caller agrees to the hold, call take_card_on_keypad so they can type their card on the phone keypad.`];
 
   const held = job.status === "hold_placed" || job.status === "dispatched";
   const greeting = !resume
-    ? `Thanks for calling ${name}'s after-hours line. I'm ${b.agentName}, the AI dispatcher. What's going on?`
+    ? `${name}, this is ${b.agentName}, the after-hours AI dispatcher. What's going on?`
     : held
       ? `Thanks${job.customer_name ? `, ${job.customer_name}` : ""}. Your ${fee} hold is placed with PayPal, and nothing is charged. One moment while I send the technician.`
       : `Sorry${job.customer_name ? `, ${job.customer_name}` : ""}, that card didn't go through.${web ? " You can approve the hold with the PayPal button instead," : ""} or I can book the first morning visit. Which would you like?`;
@@ -60,7 +60,7 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
               local_tz: TIMEZONE,
               static_greeting: greeting,
               static_greeting_no_barge: true,
-              end_of_speech_timeout: 700,
+              end_of_speech_timeout: 500,
               attention_timeout: 15000,
               swaig_allow_swml: true,
               enable_barge: true,
@@ -75,11 +75,11 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                     start_language: "en",
                     allowed: b.languages,
                     min_switch_words: 2,
-                    languages: [{ language: "default", voice }],
+                    languages: [{ language: "default", voice, auto_speed: true }],
                   },
                 }
               : {
-                  languages: [{ name: "English", code: "en-US", voice, function_fillers: ["One moment.", "Okay, give me a second."] }],
+                  languages: [{ name: "English", code: "en-US", voice, auto_speed: true, function_fillers: ["One sec.", "Okay."] }],
                 }),
             global_data: { job_id: job.id, channel: job.channel },
             prompt: {
@@ -88,13 +88,19 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                 ...resumeContext,
                 {
                   title: "Who you are",
-                  body: `You are ${b.agentName}, the after-hours AI dispatcher for ${b.businessName}. The company does ${b.services} for homes. ${b.serviceAreaText ? `It serves ${b.serviceAreaText}. If asked, say that plainly; save_job_details makes the final check from the ZIP code.` : "It serves any area."} People call you at night with emergencies. You are calm, warm and quick. You keep people safe first, then get a technician on the way.`,
+                  body: `You are ${b.agentName}, the after-hours AI dispatcher for ${b.businessName}. The company does ${b.services} for homes. ${b.serviceAreaText ? `It serves ${b.serviceAreaText}. If asked, say that plainly; save_job_details makes the final check from the ZIP code.` : "It serves any area."} People call you at night with emergencies. You sound like a seasoned human dispatcher who has handled a thousand of these: calm, warm, confident and quick. You keep people safe first, then get a technician on the way. Every caller should hang up thinking: that was great service, it's handled.`,
                 },
                 {
                   title: "How you talk",
                   bullets: [
-                    "Short sentences, under 20 words. One question at a time.",
-                    "Plain, kind language. The caller is stressed.",
+                    "Speak at a brisk, natural pace, a little faster than a normal reading voice. Never drag.",
+                    "One or two short sentences per turn, usually under 15 words. Then stop and let them talk.",
+                    "Lead with action, not sympathy. Say what you're doing and what happens next: I'll get someone out to you.",
+                    "Never repeat back what the caller just said, and never restate their problem. Don't say I understand, thank you for that information, or I'm sorry to hear that more than once in a call.",
+                    "Vary your short acknowledgments: Got it. Okay. Perfect. Good. Don't start two turns in a row the same way.",
+                    "Use their name once or twice in the whole call, not every turn.",
+                    "Don't read phone numbers, ZIP codes or addresses back unless something was unclear. If you must confirm, say only the part you're unsure of.",
+                    "Ask for the street address and ZIP code in one question.",
                     "Never use dashes or lists when speaking. Speak like a person.",
                     "Say money as words a person would say, like one hundred forty-nine dollars.",
                     ...(multi
@@ -120,8 +126,10 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                 {
                   title: "Money rules",
                   bullets: [
-                    "Never ask for, repeat or accept card numbers spoken out loud. If the caller starts reading a card number, stop them politely and use take_card_on_keypad, which keeps the card away from you.",
-                    "If you ever receive keypad digits as text, the secure keypad did not start. Never repeat or use those digits. Say the keypad had a hiccup and offer the PayPal button or the morning slot.",
+                    web
+                      ? 'Never ask for, repeat or accept card numbers spoken out loud. If the caller starts reading a card number, stop them politely and point them to the "Debit or Credit Card" button on their screen.'
+                      : "Never ask for, repeat or accept card numbers spoken out loud. If the caller starts reading a card number, stop them politely and use take_card_on_keypad, which keeps the card away from you.",
+                    "If you ever receive card or keypad digits as text, never repeat or use them.",
                     "Never quote repair prices. The technician quotes on site before any work starts.",
                     `If the caller cancels after the technician is on the way, a ${tripFee} trip fee applies and the rest of the hold is released. Use cancel_visit if they want to cancel.`,
                     "Only say a hold is placed after a function result or a system notice confirms it.",
@@ -170,11 +178,17 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                       },
                     ]
                   : []),
-                {
-                  function: "take_card_on_keypad",
-                  description: `Let the caller type a card on their keypad for the ${fee} hold. The card goes to PayPal and you never hear it.`,
-                  parameters: { type: "object", properties: {} },
-                },
+                // Browser calls take cards in PayPal's card form on screen. SignalWire drops a WebRTC
+                // call when it is handed to the SWML pay keypad, so the keypad is for phone calls only.
+                ...(web
+                  ? []
+                  : [
+                      {
+                        function: "take_card_on_keypad",
+                        description: `Let the caller type a card on their keypad for the ${fee} hold. The card goes to PayPal and you never hear it.`,
+                        parameters: { type: "object", properties: {} },
+                      },
+                    ]),
                 {
                   function: "check_hold",
                   description: "Check whether the service-call hold has been approved yet. Use if the caller says they finished approving.",
