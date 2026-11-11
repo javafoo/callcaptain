@@ -52,7 +52,10 @@ export function WidgetCall({ paypalClientId, liveCalls, businessName, agentName 
   }, [keypadRequested]);
 
   const transcript = (job?.events ?? []).filter((e) => e.kind === "caller" || e.kind === "agent_said").slice(-6);
-  useEffect(() => bottom.current?.scrollIntoView({ block: "end" }), [transcript.length]);
+  useEffect(() => {
+    // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would call it as a cleanup.
+    bottom.current?.scrollIntoView({ block: "end" });
+  }, [transcript.length]);
 
   const active = phase === "connecting" || phase === "live";
   const seconds = liveAt && now ? Math.max(0, Math.floor((now - liveAt) / 1000)) : 0;
