@@ -28,6 +28,8 @@ export async function POST(req: Request) {
       summary = { summary: body.post_prompt_data.raw };
     }
   }
-  await updateJob(job.id, { summary }, event("call_ended", "Call ended. AI wrote the technician's ticket."));
+  // The first AI session also ends when it hands the call to the secure keypad; that isn't the end of the call.
+  const handingOff = job.hold_method === "keypad" && job.status === "awaiting_hold" && job.pay_step !== null;
+  await updateJob(job.id, { summary }, ...(handingOff ? [] : [event("call_ended", "Call ended. AI wrote the technician's ticket.")]));
   return NextResponse.json({});
 }

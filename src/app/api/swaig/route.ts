@@ -83,7 +83,7 @@ export async function POST(req: Request) {
           { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
           event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."),
         );
-        return reply("In one short sentence, tell the caller a secure keypad will now ask for the card one item at a time, and that you won't hear the numbers. Then stop talking.", [
+        return reply("Handing the caller to the secure keypad now.", [
           keypadPayAction(job, b, originOf(req), env.webhookSecret),
         ]);
       }

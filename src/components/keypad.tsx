@@ -109,7 +109,7 @@ export function SecureKeypad({
               key={k}
               type="button"
               onClick={() => onSend(k)}
-              className="flex h-11 flex-col items-center justify-center rounded-xl bg-gray-100 text-lg font-medium leading-none text-gray-900 transition hover:bg-gray-200 active:scale-95"
+              className="flex h-10 flex-col items-center justify-center rounded-xl bg-gray-100 text-base font-medium leading-none text-gray-900 transition hover:bg-gray-200 active:scale-95"
             >
               {k}
               {sub && <span className="mt-0.5 text-[8px] font-semibold tracking-widest text-gray-400">{sub}</span>}

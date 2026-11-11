@@ -13,7 +13,10 @@ function hook(origin: string, path: string, secret: string, jobId: string) {
   return `${origin}${path}?key=${encodeURIComponent(secret)}&job=${jobId}`;
 }
 
-export function buildSwml(job: Job, b: Business, origin: string, secret: string) {
+/** After the secure keypad hands the call back, a fresh AI session picks up where we were. */
+export type Resume = { payResult: string | null };
+
+export function buildSwml(job: Job, b: Business, origin: string, secret: string, resume?: Resume) {
   const web = job.channel === "web";
   const fee = dollars(job.fee_cents);
   const tripFee = dollars(b.tripFeeCents);
@@ -29,17 +32,33 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string)
       ]
     : [`When the caller agrees to the hold, call take_card_on_keypad so they can type their card on the phone keypad.`];
 
+  const held = job.status === "hold_placed" || job.status === "dispatched";
+  const greeting = !resume
+    ? `Thanks for calling ${name}'s after-hours line. I'm ${b.agentName}, the AI dispatcher. What's going on?`
+    : held
+      ? `Thanks${job.customer_name ? `, ${job.customer_name}` : ""}. Your ${fee} hold is placed with PayPal, and nothing is charged. One moment while I send the technician.`
+      : `Sorry${job.customer_name ? `, ${job.customer_name}` : ""}, that card didn't go through.${web ? " You can approve the hold with the PayPal button instead," : ""} or I can book the first morning visit. Which would you like?`;
+
+  const resumeContext = resume
+    ? [
+        {
+          title: "Where this call is right now",
+          body: `You already spoke with this caller and took their details. Name: ${job.customer_name ?? "unknown"}. Address: ${job.service_address ?? "unknown"} ${job.zip ?? ""}. Problem: ${job.issue ?? "unknown"}. They just used the secure keypad for the service-call hold. Keypad result: ${resume.payResult ?? "unknown"}. ${held ? "The hold IS placed. Call dispatch_technician right away, then tell them who is coming and when." : "The hold is NOT placed. Do not dispatch. Offer the PayPal button or the morning slot."} Do not ask for details you already have.`,
+        },
+      ]
+    : [];
+
   return {
     version: "1.0.0",
     sections: {
       main: [
-        { answer: {} },
+        ...(resume ? [] : [{ answer: {} }]),
         {
           ai: {
             params: {
               ai_model: "gpt-4.1-mini",
               local_tz: TIMEZONE,
-              static_greeting: `Thanks for calling ${name}'s after-hours line. I'm ${b.agentName}, the AI dispatcher. What's going on?`,
+              static_greeting: greeting,
               static_greeting_no_barge: true,
               end_of_speech_timeout: 700,
               attention_timeout: 15000,
@@ -66,6 +85,7 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string)
             prompt: {
               temperature: 0.4,
               pom: [
+                ...resumeContext,
                 {
                   title: "Who you are",
                   body: `You are ${b.agentName}, the after-hours AI dispatcher for ${b.businessName}. The company does ${b.services} for homes. ${b.serviceZips.length ? `It serves ZIP codes starting with ${b.serviceZips.join(", ")}. If asked, describe that area plainly; save_job_details makes the final check.` : "It serves any area."} People call you at night with emergencies. You are calm, warm and quick. You keep people safe first, then get a technician on the way.`,
@@ -181,19 +201,22 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string)
   };
 }
 
-/** SWML `pay` action: SignalWire collects the card by keypad and POSTs it to our connector. */
+/**
+ * SWML `pay` hand-off. Run inline inside the AI session, SignalWire accepted the action but
+ * never started `pay`, so the AI kept hearing the keypad. Instead we hand the call off
+ * (`transfer: true` ends the AI session, so nothing is listening), collect the card with
+ * `pay`, then `transfer` back to /api/swml?resume=1, which starts a fresh AI session that
+ * knows the job and the result.
+ */
 export function keypadPayAction(job: Job, b: Business, origin: string, secret: string) {
-  const fee = dollars(job.fee_cents);
+  const resumeUrl = `${hook(origin, "/api/swml", secret, job.id)}&resume=1&pay_result=\${pay_result}`;
   return {
+    transfer: true,
     SWML: {
       version: "1.0.0",
       sections: {
         main: [
-          {
-            set: {
-              ai_response: `The keypad card result was \${pay_result}. If it is success, the ${fee} hold is placed on their card: confirm it in one sentence and call dispatch_technician. If not, apologize, and offer ${job.channel === "web" ? "the PayPal button on their screen or " : ""}the first morning slot.`,
-            },
-          },
+          { play: { url: "say:Connecting you to the secure keypad. The assistant can't hear what you type." } },
           {
             // Same shape SignalWire's own Agents SDK emits for FunctionResult.pay(): string
             // values and the pay engine's own prompt voice.
@@ -223,6 +246,7 @@ export function keypadPayAction(job: Job, b: Business, origin: string, secret: s
               ],
             },
           },
+          { transfer: { dest: resumeUrl } },
         ],
       },
     },

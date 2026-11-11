@@ -22,12 +22,25 @@ function findJobId(value: unknown, depth = 0): string | null {
 
 export async function POST(req: Request) {
   if (!hasWebhookKey(req)) return new NextResponse("forbidden", { status: 403 });
-  const body = (await req.json().catch(() => ({}))) as { call?: { call_id?: string; from?: string } };
+  const body = (await req.json().catch(() => ({}))) as { call?: { call_id?: string; from?: string }; vars?: { pay_result?: string } };
   const callId = body.call?.call_id ?? null;
+  const params = new URL(req.url).searchParams;
+  const b = await getBusiness();
+
+  // Back from the secure keypad hand-off: same call, same job, a fresh AI session.
+  if (params.get("resume") === "1") {
+    const job = await getJob(params.get("job") ?? "");
+    if (job) {
+      const raw = params.get("pay_result");
+      const payResult = body.vars?.pay_result ?? (raw && !raw.includes("$") ? raw : null);
+      const back = await updateJob(job.id, { pay_step: null }, event("agent", `Back from the secure keypad (${payResult ?? "no result"})`));
+      return NextResponse.json(buildSwml(back, b, originOf(req), env.webhookSecret, { payResult }));
+    }
+  }
+
   const jobId = findJobId(body);
   if (process.env.LOG_SWML_BODY) console.log("[swml] body", JSON.stringify(body).slice(0, 4000));
 
-  const b = await getBusiness();
   let job: Job | null = jobId ? await getJob(jobId) : null;
   if (job) {
     job = await updateJob(job.id, { call_id: callId }, event("agent", "Agent answered"));

@@ -76,6 +76,8 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
   const showPayPal = job?.status === "awaiting_hold" && job.hold_method === "paypal" && job.order_id;
   const keypadUnlocked = KEYPAD_STEPS.some((s) => s.key === job?.pay_step) || job?.pay_step === "payment-processing" || keypadFallback;
   const held = job?.status === "hold_placed" || job?.status === "dispatched";
+  // Keypad open: shrink the phone's header so the whole keypad fits on screen.
+  const compact = Boolean(keypadRequested && phase === "live");
 
   return (
     <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
@@ -90,12 +92,18 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
             </span>
           </div>
 
-          <div className="flex flex-1 flex-col items-center px-6 pt-10 text-center text-white">
-            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
-              <Icon name="wrench" className="h-9 w-9 text-white/90" />
-            </span>
-            <p className="mt-4 text-xl font-semibold">{business.name}</p>
-            <p className="text-sm text-white/60">After-hours line</p>
+          <div className={cx("flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-5 pb-4 text-center text-white", compact ? "pt-5" : "pt-10")}>
+            {compact ? (
+              <p className="text-sm font-semibold text-white/90">{business.name}</p>
+            ) : (
+              <>
+                <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
+                  <Icon name="wrench" className="h-9 w-9 text-white/90" />
+                </span>
+                <p className="mt-4 text-xl font-semibold">{business.name}</p>
+                <p className="text-sm text-white/60">After-hours line</p>
+              </>
+            )}
             <p className={cx("mt-3 text-sm", phase === "error" ? "text-red-300" : "text-white/80")}>
               {phase === "idle" && (liveCalls ? "Tap the green button to call" : "Live calls aren't configured here")}
               {phase === "connecting" && "Calling…"}
@@ -103,7 +111,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
               {phase === "ended" && "Call ended"}
               {phase === "error" && error}
             </p>
-            {phase === "live" && (
+            {phase === "live" && !compact && (
               <div className="mt-4 flex h-8 items-end gap-1" aria-hidden>
                 {[0, 1, 2, 3, 4, 5, 6].map((i) => (
                   <span key={i} className="w-1.5 animate-pulse rounded-full bg-brand-500" style={{ height: `${10 + ((i * 7) % 22)}px`, animationDelay: `${i * 120}ms` }} />
@@ -111,7 +119,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
               </div>
             )}
 
-            <div className="mt-6 w-full">
+            <div className={cx("w-full", compact ? "mt-3" : "mt-6")}>
               {keypadRequested && phase === "live" && <SecureKeypad serverStep={job?.pay_step ?? null} unlocked={keypadUnlocked} onSend={(d) => void sendDigit(d)} />}
               {held && phase === "live" && (
                 <div className="flex items-center gap-2 rounded-2xl bg-brand-500/15 p-3 text-left text-sm text-brand-100 ring-1 ring-brand-500/30">
@@ -122,7 +130,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
             </div>
           </div>
 
-          <div className="flex justify-center pb-10">
+          <div className="flex shrink-0 justify-center pb-8 pt-2">
             <button
               type="button"
               disabled={!liveCalls}
