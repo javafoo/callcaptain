@@ -19,6 +19,9 @@ export async function POST(req: Request) {
   // The payment system's injected notice is a "user" turn in SignalWire's log; it isn't the caller.
   if (turn.role === "user" && turn.content.startsWith("(Notice from the payment system")) return NextResponse.json({ ok: true });
 
+  // The post_prompt's JSON ticket also arrives as an assistant turn; it belongs in the ticket, not the transcript.
+  if (turn.role === "assistant" && /^\s*(```|\{)/.test(turn.content)) return NextResponse.json({ ok: true });
+
   const job = await getJob(new URL(req.url).searchParams.get("job") ?? "");
   if (job) await updateJob(job.id, {}, event(turn.role === "user" ? "caller" : "agent_said", turn.content.trim()));
   return NextResponse.json({ ok: true });
