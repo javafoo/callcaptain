@@ -82,8 +82,8 @@ export async function POST(req: Request) {
         return reply(
           `Saved${check.unverified ? ". The ZIP couldn't be confirmed, so the owner will double-check the address; carry on normally" : ", and the address is in the service area"}. ${
             job.secure_with === "card"
-              ? `To send someone tonight, they save a card or PayPal on file with PayPal. Nothing is charged tonight. The after-hours service call is ${dollars(job.fee_cents)}, part of the final bill; the technician goes over the final price on site and it is charged to that card only after they agree. Cancelling is free until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee is charged to the card. Explain this simply and ask if that works for them.`
-              : `The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain this simply and ask if they'd like to place the hold.`
+              ? `To send someone tonight, they save a card or PayPal on file with PayPal. Nothing is charged tonight. The after-hours service call is ${dollars(job.fee_cents)}, part of the final bill; the technician goes over the final price on site and it is charged to that card only after they agree. Cancelling is free until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee is charged to the card. Explain it in two short sentences, then ask if that works.`
+              : `The after-hours service call is ${dollars(job.fee_cents)}, applied to the repair. It is held now and charged only after the work. Free cancellation until the technician heads out; after that a ${dollars(b.tripFeeCents)} trip fee applies. Explain it in two short sentences, like: It's a $149 after-hours visit that goes toward the repair. I'll hold it now and nothing's charged until the work is done, okay? Mention free cancellation only if they ask.`
           }`,
         );
       }
