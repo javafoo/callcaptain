@@ -83,9 +83,11 @@ const STAGES: { title: string; moments: { icon: GlyphName; title: string; body: 
   },
 ];
 
+// The section id must never be "paypal": an element id becomes a window global and shadows the
+// PayPal SDK's window.paypal, and Next keeps this page in the DOM after navigating to /call.
 export function MoneyMoments() {
   return (
-    <section id="paypal" aria-labelledby="paypal-title" className="relative isolate scroll-mt-16 overflow-hidden bg-ink-900 py-20 text-white sm:py-28">
+    <section id="payments" aria-labelledby="paypal-title" className="relative isolate scroll-mt-16 overflow-hidden bg-ink-900 py-20 text-white sm:py-28">
       <div aria-hidden className="pointer-events-none absolute -bottom-40 left-1/2 -z-10 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-brand-500/10 blur-3xl" />
       <Container>
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)] lg:items-center">

@@ -22,7 +22,7 @@ const PRODUCT = [
 
 const PAGE = [
   { href: "#how-it-works", label: "How it works" },
-  { href: "#paypal", label: "PayPal" },
+  { href: "#payments", label: "PayPal" },
   { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
 ];
