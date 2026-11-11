@@ -59,7 +59,12 @@ function Buttons({ orderId, finalize, payLater }: Props) {
     presentationMode: "auto" as const,
     onApprove: async ({ orderId: approved }: { orderId?: string }) => {
       setProblem(null);
-      await finalize(approved ?? orderId);
+      try {
+        await finalize(approved ?? orderId);
+      } catch (e) {
+        // PayPal approved it but our server couldn't finish: say so instead of failing silently.
+        setProblem(e instanceof Error ? e.message : "PayPal couldn't finish. Try again.");
+      }
     },
     onError: (e: unknown) => setProblem(e instanceof Error ? e.message : "PayPal couldn't finish. Try again."),
   };
