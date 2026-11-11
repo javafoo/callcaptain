@@ -6,6 +6,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://callcaptain.vercel.app"),
   title: {
     template: "%s · Call Captain",
     default: "Call Captain · AI after-hours dispatcher for plumbing & HVAC",

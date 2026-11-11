@@ -3,7 +3,7 @@ import { SetupForm } from "@/components/setup-form";
 import { PageHeader } from "@/components/ui";
 import { currentBusiness } from "@/lib/workspace";
 
-export const metadata = { title: "Agent setup · Call Captain" };
+export const metadata = { title: "Agent setup" };
 
 async function Form() {
   const { business, editable } = await currentBusiness();

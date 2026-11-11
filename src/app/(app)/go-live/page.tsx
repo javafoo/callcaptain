@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui";
 import { phoneLine } from "@/lib/phone";
 import { currentAccessToken, currentBusiness } from "@/lib/workspace";
 
-export const metadata = { title: "Go live · Call Captain" };
+export const metadata = { title: "Go live" };
 
 async function Sections() {
   const [{ workspace, business, editable }, accessToken] = await Promise.all([currentBusiness(), currentAccessToken()]);

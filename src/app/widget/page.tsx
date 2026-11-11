@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { getBusiness } from "@/lib/settings";
 import { DEMO_WS, isWorkspaceId } from "@/lib/workspace-id";
 
-export const metadata = { title: "Talk to our dispatcher" };
+export const metadata = { title: { absolute: "Talk to our dispatcher" } };
 
 async function Widget({ searchParams }: { searchParams: PageProps<"/widget">["searchParams"] }) {
   const { b: param } = await searchParams;
