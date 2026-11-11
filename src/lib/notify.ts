@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import type { Job } from "./db";
+import { pushToWorkspace } from "./push";
 
 /**
  * Alerts for the owner and technician: a new emergency, a visit secured with PayPal, a
@@ -32,7 +33,21 @@ export function notify(job: Pick<Job, "id" | "business_id"> & { sample?: boolean
   }
 }
 
-/** Delivery channels plug in here. */
+/**
+ * Web Push to every phone and computer that turned on alerts for this workspace (Go live). Each job
+ * has one notification that updates in place (tag), and one push topic, so a phone that was off
+ * gets the latest news for each job instead of a backlog. The app shows the same moments as live
+ * alerts while it's open (components/notifier.tsx). Never throws.
+ */
 async function deliver(notice: Notice): Promise<void> {
-  console.log("[notify]", notice.businessId, notice.kind, notice.title);
+  try {
+    const { sent, removed, failed } = await pushToWorkspace(
+      notice.businessId,
+      { title: notice.title, body: notice.body, url: `/dashboard?job=${notice.jobId}`, tag: `job-${notice.jobId}`, kind: notice.kind },
+      notice.jobId.replace(/-/g, ""),
+    );
+    console.log("[notify]", notice.businessId, notice.kind, notice.title, `· push: ${sent} sent, ${removed} removed, ${failed} failed`);
+  } catch (e) {
+    console.warn("[notify]", notice.businessId, notice.kind, e instanceof Error ? e.message : e);
+  }
 }
