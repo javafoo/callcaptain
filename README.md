@@ -73,8 +73,8 @@ Every PayPal write sends a `PayPal-Request-Id`, so a retried webhook can't doubl
 
 | What | Value |
 |---|---|
-| PayPal sandbox buyer email | _added before submission_ |
-| PayPal sandbox buyer password | _added before submission_ |
+| PayPal sandbox buyer email | `sb-45io452985664@personal.example.com` |
+| PayPal sandbox buyer password | `sa3LG/gi` |
 | Test card (guest checkout and keypad) | `4111 1111 1111 1111`, `12/29`, CVV `123`, ZIP `95131` |
 
 ## Architecture
