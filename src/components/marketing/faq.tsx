@@ -5,18 +5,18 @@ import { Container, SectionHeading } from "./primitives";
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is the customer charged on the call?",
-    a: "No. Ava places a PayPal hold, an authorization for the after-hours service call, and $0 moves. The customer is charged after the job, once they approve the final bill. With card on file, nothing is charged or held that night.",
+    a: "No. Ava asks to keep a card on file with PayPal, and $0 moves. The saved card is charged only after the job, once the customer approves the final bill on their own phone. Owners who want money held up front can switch to a $149 PayPal hold instead.",
   },
   {
-    q: "What if the bill is bigger than the hold?",
-    a: "PayPal captures the full hold, and the customer pays the balance with PayPal, Venmo or, on eligible amounts, Pay Later to split it into payments. With card on file, the approved amount is charged to the saved card or PayPal account.",
+    q: "What if the bill is big?",
+    a: "The customer approves the amount first, then the saved card or PayPal account is charged. With the hold option, PayPal captures the hold and the customer pays the balance with PayPal, Venmo or, on eligible amounts, Pay Later.",
   },
   {
     q: "What if they cancel?",
-    a: "Cancel before the technician heads out and the hold is released, so nothing is charged. Cancel after the truck rolls and only the $79 trip fee is kept; the rest of the hold is released. You set both amounts.",
+    a: "Cancel before the technician heads out and nothing is charged. Cancel after the truck rolls and only the $79 trip fee is charged, and it goes toward the bill. You set the amount.",
   },
   {
-    q: "What if the caller says no to the hold?",
+    q: "What if the caller won’t leave a card?",
     a: "Ava doesn’t push. She books the first morning visit instead, with nothing up front. Nobody is turned away.",
   },
   {
@@ -29,7 +29,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Is this real money?",
-    a: "Not in this build. Call Captain runs on PayPal’s sandbox for the PayPal AI Hackathon, so no real money moves. Try a call and approve the hold with a sandbox test card.",
+    a: "Not in this build. Call Captain runs on PayPal’s sandbox for the PayPal AI Hackathon, so no real money moves. Try a call and save a sandbox test card.",
   },
 ];
 

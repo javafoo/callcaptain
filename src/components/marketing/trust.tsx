@@ -17,7 +17,7 @@ export function Trust() {
         <div className="mt-14 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <TrustCard icon="shield" title="No dispatch until PayPal confirms" className="lg:col-span-2">
             <p>
-              It’s enforced in code, not left to the AI. The dispatch step refuses to run until PayPal confirms the hold or the saved card, whatever anyone says on the call.
+              It’s enforced in code, not left to the AI. The dispatch step refuses to run until PayPal confirms the saved card or the hold, whatever anyone says on the call.
             </p>
             <pre className="mt-4 rounded-lg bg-ink-900 p-4 font-mono text-[11.5px] leading-relaxed break-words whitespace-pre-wrap text-white sm:text-[12.5px]">
               <span className="text-ink-300">{"// src/lib/money.ts · dispatchTechnician()"}</span>
@@ -52,7 +52,7 @@ export function Trust() {
           </TrustCard>
 
           <TrustCard icon="pin" title="Only inside your service area">
-            <p>Every caller’s ZIP is checked against your counties in code. Outside your area, Ava says so and no hold is offered.</p>
+            <p>Every caller’s ZIP is checked against your counties in code. Outside your area, Ava says so and asks for no card.</p>
           </TrustCard>
         </div>
       </Container>

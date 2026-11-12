@@ -3,7 +3,7 @@ import { ApiTag, Container, SectionHeading } from "./primitives";
 
 const HOLD = 149;
 
-/** The same $149 hold, settled four ways. Amounts match the demo in the README. */
+/** The owner option: the same $149 hold, settled four ways. Amounts match the demo in the README. */
 const ENDINGS: { title: string; captured: number; balance?: string; result: string; api: string }[] = [
   { title: "Bill comes in at $120", captured: 120, result: "$120 captured · $29 released", api: "capture" },
   { title: "Bill comes in at $1,840", captured: 149, balance: "+ $1,691", result: "$149 captured · $1,691 balance with Pay Later", api: "capture + balance order" },
@@ -16,22 +16,22 @@ const STAGES: { title: string; moments: { icon: GlyphName; title: string; body: 
     title: "Before the truck rolls",
     moments: [
       {
-        icon: "shield",
-        title: "Hold on the call",
-        body: "A PayPal button appears on the caller’s screen mid-call. They approve with PayPal, Venmo or a card. $0 moves.",
-        api: "Orders v2 · AUTHORIZE · JS SDK v6",
-      },
-      {
         icon: "card",
-        title: "Or card on file, $0 tonight",
-        body: "If you prefer, the caller saves PayPal or a card with PayPal Vault instead. Nothing is charged or held.",
-        api: "Vault v3 · setup token → payment token",
+        title: "Card on file, $0 tonight",
+        body: "Mid-call, PayPal’s secure form appears on the caller’s screen. They save PayPal, Venmo or a card with PayPal Vault. Nothing is charged.",
+        api: "Vault v3 · setup token → payment token · JS SDK v6",
       },
       {
         icon: "keypad",
         title: "Keypad on a phone call",
-        body: "No screen? The caller types the card on the keypad and PayPal holds it. The AI never hears a digit.",
-        api: "Orders v2 · card · AUTHORIZE",
+        body: "No screen? The caller types the card on the keypad and it’s saved to PayPal Vault. The AI never hears a digit.",
+        api: "Vault v3 · card setup token → payment token",
+      },
+      {
+        icon: "shield",
+        title: "Or a $149 hold, if you prefer",
+        body: "Want money held up front? The caller approves a PayPal hold for the service call instead. $0 moves until the job.",
+        api: "Orders v2 · AUTHORIZE · JS SDK v6",
       },
     ],
   },
@@ -39,22 +39,22 @@ const STAGES: { title: string; moments: { icon: GlyphName; title: string; body: 
     title: "After the job",
     moments: [
       {
+        icon: "card",
+        title: "Charge the card on file",
+        body: "The customer approves the final bill on their own phone. Only then is the saved card or PayPal charged, once.",
+        api: "Orders v2 · CAPTURE · vault_id",
+      },
+      {
         icon: "dollar",
-        title: "Capture what was approved",
-        body: "The customer approves the final bill. PayPal captures it from the hold and releases the rest.",
+        title: "Hold option: capture what was approved",
+        body: "PayPal captures the approved amount from the hold and releases the rest.",
         api: "Authorizations · capture",
       },
       {
         icon: "receipt",
         title: "Bigger bill, Pay Later",
-        body: "PayPal captures the whole hold. The customer pays the balance with PayPal, Venmo or Pay Later.",
+        body: "With a hold, PayPal captures it and the customer pays the balance with PayPal, Venmo or Pay Later.",
         api: "Orders v2 · CAPTURE · Pay Later",
-      },
-      {
-        icon: "card",
-        title: "Charge the card on file",
-        body: "A saved card or PayPal account is charged once, only after the customer approves the amount.",
-        api: "Orders v2 · CAPTURE · vault_id",
       },
     ],
   },
@@ -64,19 +64,19 @@ const STAGES: { title: string; moments: { icon: GlyphName; title: string; body: 
       {
         icon: "clock",
         title: "Cancel before dispatch",
-        body: "The hold is voided and nothing is charged. A saved card is removed.",
+        body: "Nothing is charged. A saved card is removed, and a hold is voided.",
         api: "Authorizations · void",
       },
       {
         icon: "truck",
         title: "Cancel after the truck rolls",
-        body: "Only the $79 trip fee is kept. The rest of the hold is released.",
+        body: "Only the $79 trip fee is charged to the saved card, or kept from the hold. It goes toward the bill.",
         api: "Partial capture · final_capture",
       },
       {
         icon: "refund",
         title: "Refunds from your ledger",
-        body: "Every hold, capture and release lands in a PayPal payments ledger. Refund from the dashboard.",
+        body: "Every saved card, charge, hold and release lands in a PayPal payments ledger. Refund from the dashboard.",
         api: "Captures · refund · webhooks",
       },
     ],
@@ -96,7 +96,7 @@ export function MoneyMoments() {
             dark
             eyebrow="PayPal"
             title="Every money moment runs through PayPal"
-            lead="Ava handles the conversation. PayPal handles the money. Every hold, capture, release, balance and refund is a PayPal API call, made in code at the moment the job calls for it, never on the AI’s say-so."
+            lead="Ava handles the conversation. PayPal handles the money. Every saved card, charge, hold, capture and refund is a PayPal API call, made in code at the moment the job calls for it, never on the AI’s say-so."
           />
           <Endings />
         </div>
@@ -141,7 +141,7 @@ function Endings() {
   return (
     <div className="rounded-2xl bg-white/[0.04] p-6 ring-1 ring-white/10">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold text-white">One $149 hold, four endings</h3>
+        <h3 className="text-base font-semibold text-white">Hold option: one $149 hold, four endings</h3>
         <p className="flex items-center gap-3 text-xs text-ink-300">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-brand-500" aria-hidden /> captured

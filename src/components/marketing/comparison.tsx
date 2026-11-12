@@ -35,7 +35,7 @@ const ROWS: { label: string; cells: [Cell, Cell, Cell, Cell] }[] = [
       { mark: "no", text: "No" },
       { mark: "partial", text: "Some take a card by phone" },
       { mark: "no", text: "Books a time slot" },
-      { mark: "yes", text: "PayPal hold or card on file" },
+      { mark: "yes", text: "Card on file or a PayPal hold" },
     ],
   },
   {

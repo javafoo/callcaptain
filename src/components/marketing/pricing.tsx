@@ -1,7 +1,7 @@
 import { Icon } from "@/components/ui";
 import { ButtonLink, Container, SectionHeading } from "./primitives";
 
-const INCLUDED = ["No setup fee", "Unlimited after-hours calls during the beta", "PayPal holds, card on file, jobs dashboard and phone alerts"];
+const INCLUDED = ["No setup fee", "Unlimited after-hours calls during the beta", "Card on file, PayPal holds, jobs dashboard and phone alerts"];
 
 export function Pricing() {
   return (

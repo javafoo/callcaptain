@@ -26,7 +26,7 @@ const SETUP: { icon: GlyphName; title: string; body: ReactNode }[] = [
     title: "A “Talk to us now” button",
     body: (
       <>
-        One line of code adds it to your website. Visitors talk to Ava and approve the hold right on the page.
+        One line of code adds it to your website. Visitors talk to Ava and save a card with PayPal right on the page.
         <code className="mt-2.5 block rounded-lg bg-ink-900 px-3 py-2.5 font-mono text-[12px] leading-relaxed break-all whitespace-pre-wrap text-brand-100">{EMBED}</code>
       </>
     ),
@@ -121,7 +121,7 @@ function SetupMock() {
         </div>
         <dl className="grid grid-cols-1 gap-px bg-gray-100 sm:grid-cols-2">
           <Field label="Services">plumbing, water heaters, heating and drains</Field>
-          <Field label="Secure night visits with">PayPal hold on the call</Field>
+          <Field label="Secure night visits with">Card on file with PayPal</Field>
           <Field label="After-hours service call">$149, credited to the repair</Field>
           <Field label="Trip fee after dispatch">$79</Field>
         </dl>
@@ -174,10 +174,10 @@ function AlertsMock() {
         <p className="mt-1 text-center text-xs text-ink-300">Owner’s phone, on the nightstand</p>
         <div className="mx-auto mt-6 max-w-sm space-y-2.5">
           <Notification time="2:10 AM" title="New job: Dana, water heater burst">
-            $149 PayPal hold placed. Marcus confirmed, 35–45 min.
+            Card on file with PayPal. Marcus confirmed, 35–45 min.
           </Notification>
           <Notification time="now" title="Dana approved the $420 bill">
-            $149 captured from the hold. $271 balance sent with Pay Later.
+            $420 charged to the card on file. Receipt sent.
           </Notification>
         </div>
       </div>

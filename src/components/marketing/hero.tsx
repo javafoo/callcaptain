@@ -4,7 +4,7 @@ import { formatPhone } from "@/lib/phone";
 import { Glyph } from "./icons";
 import { ButtonLink, Container } from "./primitives";
 
-const PROMISES = ["PayPal hold on the call, $0 moves", "No dispatch until PayPal confirms", "Charged only after the job"];
+const PROMISES = ["Card on file with PayPal on the call, $0 tonight", "No dispatch until PayPal confirms", "Charged only with the customer’s OK"];
 
 export function Hero({ phone }: { phone: string | null }) {
   return (
@@ -21,7 +21,7 @@ export function Hero({ phone }: { phone: string | null }) {
             <span className="block text-brand-500">Never roll a truck for free.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-pretty text-ink-300">
-            AI receptionists book appointments. Call Captain answers your after-hours line, keeps the caller safe, and secures the visit with PayPal before the truck rolls.
+            AI receptionists book appointments. Call Captain answers every after-hours call, keeps the caller safe, and backs every truck roll with a card on file through PayPal, before it leaves.
           </p>
           <ul className="mt-6 flex flex-col gap-2 text-sm text-white/90">
             {PROMISES.map((p) => (
@@ -79,7 +79,7 @@ function HeroVisual() {
   return (
     <figure className="relative mx-auto w-full max-w-[500px]">
       <figcaption className="sr-only">
-        Example: at 2:07 AM a homeowner is on the phone with Ava. Harbor Plumbing &amp; Heating’s job card shows a $149 PayPal hold placed, nothing charged, and Marcus
+        Example: at 2:07 AM a homeowner is on the phone with Ava. Harbor Plumbing &amp; Heating’s job card shows a card saved on file with PayPal, nothing charged, and Marcus
         dispatched, 35 to 45 minutes away.
       </figcaption>
       <div aria-hidden className="relative flex flex-col items-center sm:block sm:h-[560px]">
@@ -125,7 +125,7 @@ function PhoneMock() {
 
           <div className="mt-5 flex w-full items-center gap-2 rounded-2xl bg-brand-500/15 p-2.5 text-left text-[12px] leading-snug text-brand-100 ring-1 ring-brand-500/30">
             <Icon name="shield" className="h-[18px] w-[18px] shrink-0 text-brand-500" />
-            $149 hold approved. Nothing charged.
+            Card saved with PayPal. Nothing charged.
           </div>
           <div className="mt-2.5 w-full rounded-2xl bg-white/[0.06] p-3 text-left text-[12px] leading-snug text-white/90 ring-1 ring-white/10">
             <span className="mb-0.5 block text-[10px] font-semibold tracking-wide text-brand-200 uppercase">Ava</span>
@@ -143,7 +143,7 @@ function PhoneMock() {
   );
 }
 
-const STEPS = ["Answered", "Triage", "PayPal hold", "Dispatched"];
+const STEPS = ["Answered", "Triage", "Card on file", "Dispatched"];
 
 function JobCardMock() {
   return (
@@ -189,7 +189,7 @@ function JobCardMock() {
       </div>
 
       <div className="space-y-2 px-4">
-        <MockRow tone="brand" icon="shield" title="Hold placed · $149 · PayPal" note="$0 charged. Captured after the job." />
+        <MockRow tone="brand" icon="shield" title="Card on file · Visa •••• 1111 · PayPal" note="$0 tonight. Charged only after they approve." />
         <MockRow tone="blue" icon="truck" title="Marcus dispatched · 35–45 min" note="Accepted by voice at 2:10 AM" />
       </div>
 

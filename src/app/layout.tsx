@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     default: "Call Captain · AI after-hours dispatcher for plumbing & HVAC",
   },
   description:
-    "Ava, the AI after-hours dispatcher for plumbing and HVAC companies, keeps the caller safe and secures the visit with a PayPal hold before the truck rolls. Charged only after the job.",
+    "Ava, the AI after-hours dispatcher for plumbing and HVAC companies, keeps the caller safe and backs every truck roll with a card on file through PayPal. Charged only with the customer’s OK.",
   openGraph: {
     type: "website",
     siteName: "Call Captain",

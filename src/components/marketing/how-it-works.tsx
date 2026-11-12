@@ -28,8 +28,8 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
     title: "She takes the job and checks your area",
     body: (
       <>
-        Name, address with ZIP and what’s wrong, one question at a time. The ZIP is checked against your service counties in code, before any hold is offered. Outside your
-        area, she says so kindly and no hold is placed.
+        Name, address with ZIP and what’s wrong, one question at a time. The ZIP is checked against your service counties in code, before any card is asked for. Outside your
+        area, she says so kindly and nothing is taken.
       </>
     ),
     visual: (
@@ -53,16 +53,15 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
     title: "She secures the visit with PayPal",
     body: (
       <>
-        Ava explains the $149 after-hours service call, credited to the repair. The caller approves a PayPal hold with PayPal, Venmo or a card on their own screen, and $0 moves.
-        If you choose card on file instead, they save PayPal or a card with PayPal Vault and nothing is charged that night. On a regular phone call, they type the card
-        on the keypad.
+        “Can we get a card on file? Nothing’s charged now.” The caller saves PayPal, Venmo or a card with PayPal Vault on their own screen, or types it on the keypad on a
+        regular phone call. Free to cancel until the truck rolls; after that, a $79 trip fee. Prefer money held up front? Switch to a $149 PayPal hold.
       </>
     ),
     visual: (
       <Panel>
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-          <p className="text-sm font-medium text-gray-900">Approve the $149 hold</p>
-          <p className="text-sm text-gray-600">Nothing is charged now. You pay after the work is done.</p>
+          <p className="text-sm font-medium text-gray-900">Keep a card on file</p>
+          <p className="text-sm text-gray-600">Nothing is charged now. You approve the final bill first.</p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-[13px] font-semibold">
             <span className="rounded-full bg-white py-2 text-center text-gray-900 ring-1 ring-gray-300">PayPal</span>
             <span className="rounded-full bg-white py-2 text-center text-gray-900 ring-1 ring-gray-300">Venmo</span>
@@ -70,8 +69,8 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Tag icon="card">Card on file · $0 tonight</Tag>
           <Tag icon="keypad">Phone call · keypad</Tag>
+          <Tag icon="shield">Or a $149 hold</Tag>
         </div>
       </Panel>
     ),
@@ -81,7 +80,7 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
     title: "PayPal confirms. Marcus rolls.",
     body: (
       <>
-        The moment PayPal approves, Ava says “You’re all set” without being asked and dispatches. She phones your on-call technician, briefs him, and he accepts by voice. The
+        The moment PayPal saves the card, Ava says “You’re all set” without being asked and dispatches. She phones your on-call technician, briefs him, and he accepts by voice. The
         homeowner hears “Marcus just confirmed” before they hang up.
       </>
     ),
@@ -91,7 +90,7 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
           <Icon name="phone" className="h-3.5 w-3.5 text-brand-700" />
           Ava is calling Marcus, on call tonight
         </p>
-        <Bubble from="Ava">Burst water heater at 214 Alder Lane. Water’s off and the $149 hold is placed. Can you take it?</Bubble>
+        <Bubble from="Ava">Burst water heater at 214 Alder Lane. Water’s off and her card is on file with PayPal. Can you take it?</Bubble>
         <Bubble from="Marcus">Yep. Heading out now.</Bubble>
         <Chip tone="blue" icon="truck">
           Dana hears: “Marcus just confirmed. 35 to 45 minutes.”
@@ -104,8 +103,8 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
     title: "The customer approves the final bill",
     body: (
       <>
-        Marcus enters the bill on his phone. The customer approves it on their own screen, or by scanning a QR code. PayPal captures it from the hold and releases the rest. A
-        bigger bill? The balance goes to PayPal, Venmo or Pay Later.
+        Marcus enters the bill on his phone. The customer approves it on their own screen, or by scanning a QR code, and only then is the saved card charged. With the hold
+        option, PayPal captures from the hold and the balance goes to PayPal, Venmo or Pay Later.
       </>
     ),
     visual: (
@@ -124,12 +123,12 @@ const STEPS: { time: string; title: string; body: ReactNode; visual: ReactNode }
         </div>
         <ul className="space-y-1.5 text-[13px] text-gray-700">
           <li className="flex items-center justify-between gap-3">
-            <span>Captured from the hold</span>
-            <span className="font-medium text-gray-900 tabular-nums">$149.00</span>
+            <span>Charged to Visa •••• 1111 on file</span>
+            <span className="font-medium text-gray-900 tabular-nums">$420.00</span>
           </li>
           <li className="flex items-center justify-between gap-3">
-            <span>Balance · PayPal, Venmo or Pay Later</span>
-            <span className="font-medium text-gray-900 tabular-nums">$271.00</span>
+            <span>Approved on the customer’s phone</span>
+            <span className="font-medium text-gray-900 tabular-nums">3:42 AM</span>
           </li>
         </ul>
       </Panel>
