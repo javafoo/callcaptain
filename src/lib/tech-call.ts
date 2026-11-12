@@ -378,9 +378,11 @@ function jobFacts(job: Job, b: Business): string {
 }
 
 /**
- * SWML for the technician's call: detect_machine first (voicemail gets one short line, then the
- * call ends and counts as no answer), then the AI brief with accept_job and decline_job.
- * Shapes: https://signalwire.com/docs/swml/reference/calling/detect-machine, .../calling/ai.
+ * SWML for the technician's call: the AI starts the moment the phone is answered with a fixed
+ * greeting (no silent gap), briefs the technician, and settles it with accept_job or decline_job.
+ * No blocking answering-machine detection: it kept a person who picked up in silence for seconds.
+ * A voicemail greeting is handled by the AI itself (one short message, then decline_job "voicemail").
+ * Shape: https://signalwire.com/docs/swml/reference/calling/ai.
  */
 export function buildTechSwml(job: Job, b: Business, origin: string, secret: string) {
   const tech = techOf(job, b);
@@ -388,6 +390,7 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
   const voice = voiceString(b.voiceId);
   const say = (text: string) => ({ play: { url: `say:${text}`, say_voice: voice } });
   const voicemail = `Hi ${tech}, it's ${b.agentName}, the after-hours dispatcher for ${company}, with an emergency job. Please call the office. Goodbye.`;
+  const greeting = `Hi ${tech}, it's ${b.agentName} from ${company}. I've got an emergency job for you.`;
 
   if (!SECURED.includes(job.status)) {
     return {
@@ -407,11 +410,13 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
     params: {
       ai_model: "gpt-4.1-mini",
       local_tz: TIMEZONE,
+      static_greeting: greeting,
+      static_greeting_no_barge: true,
       end_of_speech_timeout: 800,
       attention_timeout: 10000,
       outbound_attention_timeout: 30000,
       inactivity_timeout: 60000,
-      hard_stop_time: "180",
+      hard_stop_time: "3m",
       hard_stop_prompt: `Time is up. Tell ${tech} the office will follow up, and say goodbye.`,
       enable_barge: true,
     },
@@ -432,7 +437,7 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
           title: "How this call goes",
           numbered: true,
           bullets: [
-            `Open with: Hi ${tech}, it's ${b.agentName} from ${company}. Then brief ${tech} in two or three short sentences: the customer's first name, the street address and ZIP code, the problem and how urgent it is, any safety steps already taken, and how the visit is secured with PayPal. Mention the arrival time the customer was told. End with: Can you take it?`,
+            `You already opened the call with: ${greeting} As soon as ${tech} answers, whatever they say, brief ${tech} in two or three short sentences: the customer's first name, the street address and ZIP code, the problem and how urgent it is, any safety steps already taken, and how the visit is secured with PayPal. Mention the arrival time the customer was told. End with: Can you take it?`,
             `If ${tech} says yes, call accept_job right away. If ${tech} says how long it will take, like forty minutes, pass eta_minutes. Don't ask for a time if none is offered.`,
             `If ${tech} says no or can't make it, say no problem and call decline_job, with the reason if one was given.`,
             `If ${tech} asks a question, answer in one short sentence from the job details only, then ask again if they can take it. If you don't know, say the office will follow up.`,
@@ -478,16 +483,7 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
   return {
     version: "1.0.0",
     sections: {
-      main: [
-        { detect_machine: { detectors: "amd", detect_message_end: true, timeout: 30, status_url: hook(origin, "/api/swml/tech/status", secret, job.id) } },
-        {
-          switch: {
-            variable: "detect_result",
-            case: { machine: [say(voicemail), { hangup: {} }] },
-            default: [{ ai }, { hangup: {} }],
-          },
-        },
-      ],
+      main: [{ ai }, { hangup: {} }],
     },
   };
 }

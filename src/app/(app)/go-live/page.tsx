@@ -11,7 +11,7 @@ export const metadata = { title: "Go live" };
 async function Sections() {
   const [{ workspace, business, editable }, accessToken] = await Promise.all([currentBusiness(), currentAccessToken()]);
   return (
-    <div className="grid max-w-4xl gap-6">
+    <div className="grid max-w-4xl grid-cols-1 gap-6">
       <GoLivePhone workspace={workspace} line={phoneLine()} testPhones={business.testPhones} editable={editable} />
       <EmbedSnippet workspace={workspace} />
       {/* The private access token opens this workspace on the owner's phone; never show it as text or put it in the embed snippet. */}
