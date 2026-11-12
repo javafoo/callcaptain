@@ -27,7 +27,7 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
     <>
       <PageHeader
         title="Jobs"
-        description="Every after-hours call your agent answered, live. Open a job to charge the final bill, release a hold or apply the cancellation fee."
+        description="Every after-hours call your agent answered, live. Open a job to send the final bill for the customer to approve, charge the card on file, or apply the trip fee."
       />
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardForJob searchParams={searchParams} />

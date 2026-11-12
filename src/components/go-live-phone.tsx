@@ -44,7 +44,7 @@ export function GoLivePhone({ line, testPhones, editable }: { workspace: string 
 
   return (
     <Card>
-      <CardHeader title="Your after-hours phone line" subtitle="Your agent answers this number around the clock: triage, the PayPal hold, and the call to your technician." />
+      <CardHeader title="Your after-hours phone line" subtitle="Your agent answers this number around the clock: triage, a card on file with PayPal, and the call to your technician." />
       <div className="grid grid-cols-1 gap-px bg-gray-100 lg:grid-cols-2">
         <div className="flex flex-col gap-5 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ink-900 px-4 py-3.5 text-white">

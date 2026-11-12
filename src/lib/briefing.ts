@@ -56,7 +56,6 @@ const MEANING: Record<string, string> = {
 };
 
 const HOURS = 30; // last night plus today, whatever time the owner looks
-const SECURED = new Set(["hold_placed", "card_saved", "dispatched"]);
 
 export function overnightJobs(jobs: Job[], now = Date.now()): Job[] {
   return jobs.filter((j) => now - Date.parse(j.created_at) < HOURS * 3_600_000);
@@ -66,7 +65,7 @@ function factsOf(jobs: Job[]): Facts {
   return {
     calls: jobs.length,
     secured: jobs.filter((j) => j.authorization_id || j.vault_id || j.captured_cents > 0).length,
-    heldNow: jobs.filter((j) => SECURED.has(j.status) && j.hold_method !== "vault").reduce((s, j) => s + j.fee_cents, 0),
+    heldNow: jobs.filter((j) => j.authorization_id && (j.status === "hold_placed" || j.status === "dispatched")).reduce((s, j) => s + j.fee_cents, 0),
     collected: jobs.reduce((s, j) => s + (j.captured_cents ?? 0) - (j.refunded_cents ?? 0), 0),
     balanceDue: jobs.filter((j) => j.status === "balance_due").reduce((s, j) => s + (j.balance_cents ?? 0), 0),
     balanceDueCount: jobs.filter((j) => j.status === "balance_due").length,

@@ -405,7 +405,7 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
             <Field label="Default arrival window" hint="Quoted when the caller's ZIP can't be placed.">
               <input className={inputClass} value={form.eta} onChange={(e) => set("eta", e.target.value)} />
             </Field>
-            <Field label="First morning slot" hint="Offered when a caller doesn't want the hold." className="sm:col-span-2">
+            <Field label="First morning slot" hint="Offered when a caller doesn't want to secure a visit tonight." className="sm:col-span-2">
               <input className={inputClass} value={form.morningSlot} onChange={(e) => set("morningSlot", e.target.value)} />
             </Field>
           </div>

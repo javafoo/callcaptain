@@ -50,7 +50,7 @@ function ownerStats(rows: JobRow[], payments: Payment[], now: number) {
       icon: "shield" as const,
       tone: secured ? ("good" as const) : undefined,
     },
-    { label: "Held right now", value: dollars(held), note: heldNote || "Nothing held right now", icon: "clock" as const },
+    { label: "Secured right now", value: holds || !cards ? dollars(held) : plural(cards, "card"), note: heldNote || "Nothing open right now", icon: "clock" as const },
     {
       label: "Collected this week",
       value: dollars(collected - refunded),

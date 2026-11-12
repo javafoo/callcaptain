@@ -8,7 +8,7 @@ export default function PaymentsPage() {
     <>
       <PageHeader
         title="Payments"
-        description="Every PayPal money movement: holds placed, charged or released, cards saved or charged, trip fees, balances paid and refunds. Export it for your bookkeeper."
+        description="Every PayPal money movement: cards saved and charged, trip fees, holds, balances paid and refunds. Export it for your bookkeeper."
       />
       <PaymentsLedger />
     </>
