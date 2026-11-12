@@ -28,7 +28,7 @@ const RING_SECONDS = 30;
 const WATCH_MS = 45_000;
 /** A call still "calling" this long after its last news is over, whatever happened to its callbacks. */
 const STALE_MS = 4 * 60_000;
-const PER_NUMBER_PER_DAY = 5;
+const PER_NUMBER_PER_DAY = 12;
 const PER_WORKSPACE_PER_HOUR = 10;
 /** US calls cost about a cent a minute. Premium and international routes cost far more. */
 const MAX_PRICE_PER_MINUTE = 0.1;
