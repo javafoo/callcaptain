@@ -14,6 +14,7 @@ import {
   deletePaymentToken,
   payerLabel,
   refundCapture,
+  vaultCard,
   voidAuthorization,
   type VaultKind,
 } from "./paypal";
@@ -191,6 +192,20 @@ export async function holdKeypadCard(job: Job, b: Business, card: KeypadCard): P
   });
   notify(updated, "secured", `${dollars(job.fee_cents)} hold placed · ${who(updated)}`, `Card •••• ${last4} on the phone keypad. ${updated.issue ?? ""}`.trim());
   return { job: updated, authorizationId: authorization.id };
+}
+
+/** SignalWire's pay connector posted the keypad card in card-on-file mode: save it with PayPal, $0. */
+export async function saveKeypadCard(job: Job, card: KeypadCard): Promise<{ job: Job; vaultId: string }> {
+  if (SECURED.has(job.status) && job.vault_id) return { job, vaultId: job.vault_id };
+  const saved = await vaultCard(job.id, { ...card, name: job.customer_name ?? undefined });
+  const updated = await updateJob(
+    job.id,
+    { status: "card_saved", hold_method: "keypad", vault_id: saved.id, vault_type: saved.type, card_last4: saved.last4, pay_step: "done" },
+    event("card_saved", `${saved.label} saved on file with PayPal, typed on the keypad. $0 charged. The AI never heard it.`),
+  );
+  await recordPayment(updated, { kind: "card_saved", status: "SAVED", amountCents: 0, paypalId: saved.id, method: `${saved.label} (keypad)` });
+  notify(updated, "secured", `Card on file · ${who(updated)}`, `${saved.label} saved on the phone keypad, $0 charged. ${updated.issue ?? ""}`.trim());
+  return { job: updated, vaultId: saved.id };
 }
 
 export async function dispatchTechnician(job: Job, b: Business): Promise<Job> {

@@ -66,7 +66,7 @@ export const DEFAULT_BUSINESS: Business = {
   services: "plumbing, water heaters, heating and drains",
   serviceCallCents: 14900,
   tripFeeCents: 7900,
-  secureWith: "hold",
+  secureWith: "card",
   serviceAreaText: "San Jose and the rest of Santa Clara County",
   serviceCounties: [{ county: "Santa Clara County", state: "CA" }],
   serviceZips: [],

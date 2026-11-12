@@ -285,6 +285,36 @@ export async function createPaymentToken(
   };
 }
 
+/**
+ * A card typed on the phone keypad in card-on-file mode: saved straight to the vault, $0.
+ * Setup token with the card details (SignalWire's pay connector hands them to us; never stored
+ * or logged), then the payment token. The same card would be charged later only after the
+ * customer approves the final bill.
+ */
+export async function vaultCard(
+  jobId: string,
+  card: { number: string; expiryMonth: string; expiryYear: string; cvv?: string; postalCode?: string; name?: string },
+): Promise<{ id: string; type: VaultKind; label: string; last4: string | null; email: string | null }> {
+  const year = card.expiryYear.length === 2 ? `20${card.expiryYear}` : card.expiryYear;
+  const st = await pp<{ id: string; status: string }>("/v3/vault/setup-tokens", {
+    method: "POST",
+    idempotencyKey: `setup-keypad-${jobId}-${randomUUID()}`,
+    body: {
+      payment_source: {
+        card: {
+          number: card.number,
+          expiry: `${year}-${card.expiryMonth.padStart(2, "0")}`,
+          ...(card.name ? { name: card.name.slice(0, 300) } : {}),
+          ...(card.cvv ? { security_code: card.cvv } : {}),
+          ...(card.postalCode ? { billing_address: { postal_code: card.postalCode, country_code: "US" } } : {}),
+        },
+      },
+    },
+  });
+  if (st.status !== "APPROVED") throw new Error(`PayPal couldn't save the card (${st.status})`);
+  return createPaymentToken(st.id);
+}
+
 /** Step 3: charge the saved method, with the customer not present (merchant-initiated). */
 export async function chargeSaved(
   vault: { id: string; type: VaultKind },

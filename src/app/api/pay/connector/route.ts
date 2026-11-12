@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { event, getJob, updateJob } from "@/lib/db";
 import { hasWebhookKey } from "@/lib/env";
-import { holdKeypadCard } from "@/lib/money";
+import { holdKeypadCard, saveKeypadCard } from "@/lib/money";
 import { PayPalError } from "@/lib/paypal";
 import { getBusiness } from "@/lib/settings";
 
@@ -33,19 +33,25 @@ export async function POST(req: Request) {
   const number = (body.cardnumber ?? "").replace(/\D/g, "");
   if (number.length < 12 || !body.expiry_month || !body.expiry_year) return fail(400, "invalid_card", "Card details are incomplete");
 
+  const card = {
+    number,
+    expiryMonth: body.expiry_month,
+    expiryYear: body.expiry_year,
+    cvv: body.cvv?.replace(/\D/g, "") || undefined,
+    postalCode: body.postal_code?.trim() || undefined,
+  };
   try {
-    const { authorizationId } = await holdKeypadCard(job, await getBusiness(job.business_id), {
-      number,
-      expiryMonth: body.expiry_month,
-      expiryYear: body.expiry_year,
-      cvv: body.cvv?.replace(/\D/g, "") || undefined,
-      postalCode: body.postal_code?.trim() || undefined,
-    });
+    // Card-on-file mode saves the card with PayPal ($0); hold mode places the service-call hold.
+    if (job.secure_with === "card") {
+      const { vaultId } = await saveKeypadCard(job, card);
+      return NextResponse.json({ charge_id: vaultId, error_code: null, error_message: null });
+    }
+    const { authorizationId } = await holdKeypadCard(job, await getBusiness(job.business_id), card);
     return NextResponse.json({ charge_id: authorizationId, error_code: null, error_message: null });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Card was declined";
     const code = e instanceof PayPalError ? (e.issue ?? "declined").toLowerCase() : "processor_error";
-    await updateJob(job.id, {}, event("declined", `Keypad card not held: ${message}`)).catch(() => {});
+    await updateJob(job.id, {}, event("declined", `Keypad card not ${job.secure_with === "card" ? "saved" : "held"}: ${message}`)).catch(() => {});
     return fail(402, code, message);
   }
 }

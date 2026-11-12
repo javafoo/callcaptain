@@ -15,7 +15,11 @@ function hook(origin: string, path: string, secret: string, jobId: string) {
 }
 
 /** After the secure keypad hands the call back, a fresh AI session picks up where we were. */
-export type Resume = { payResult: string | null };
+export type Resume = {
+  payResult: string | null;
+  /** What happened next, said to the caller right away: the server dispatches once the keypad secures the visit. */
+  next?: string | null;
+};
 
 export function buildSwml(job: Job, b: Business, origin: string, secret: string, resume?: Resume) {
   const web = job.channel === "web";
@@ -28,13 +32,21 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
   // dispatch_technician phones the technician to confirm (./tech-call.ts) when there's a number to call and a line to call from.
   const phonesTech = Boolean(b.technicianPhone && phoneLine());
 
-  // Card on file only works where the caller has a screen (browser calls). Phone calls keep the keypad hold.
-  const cardOnFile = web && job.secure_with === "card";
+  // Card on file: browser callers save it in PayPal's form; phone callers type it on the secure keypad (PayPal Vault, $0).
+  const cardOnFile = job.secure_with === "card";
+  const cancelLine =
+    b.tripFeeCents > 0
+      ? `It's free to cancel until ${tech} heads out; after that there's a ${tripFee} trip fee that goes toward your bill.`
+      : "It's free to cancel before the work starts.";
+  const cardAsk = `Can we get a card on file? Nothing's charged now, and we only charge it with your OK. ${cancelLine}`;
+  const holdAsk = `The after-hours visit is ${fee}, and it goes toward the repair. I'll hold it with PayPal now; nothing's charged until the work is done, and the hold is released if you cancel before ${tech} heads out.`;
   const paymentStep = cardOnFile
-    ? [
-        `When the caller agrees, call save_card_on_file. A secure PayPal form then appears on their screen.`,
-        `Tell them they can save PayPal, or type a debit or credit card in the boxes and tap Save card. Nothing is charged tonight.`,
-      ]
+    ? web
+      ? [
+          `When the caller agrees, call save_card_on_file. A secure PayPal form then appears on their screen.`,
+          `Tell them in one sentence: they can save PayPal, or type a card in the boxes and tap Save card.`,
+        ]
+      : [`When the caller agrees, call take_card_on_keypad so they can type the card on their phone keypad. You never hear it.`]
     : web
     ? [
         `When the caller agrees to the hold, call start_paypal_hold. A secure PayPal button then appears on their screen.`,
@@ -43,18 +55,27 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
       ]
     : [`When the caller agrees to the hold, call take_card_on_keypad so they can type their card on the phone keypad.`];
 
-  const held = job.status === "hold_placed" || job.status === "dispatched";
+  const held = job.status === "hold_placed" || job.status === "card_saved" || job.status === "dispatched";
+  const securedLine = cardOnFile ? "Your card is saved with PayPal, and nothing is charged." : `Your ${fee} hold is placed with PayPal, and nothing is charged.`;
   const greeting = !resume
     ? `${name}, this is ${b.agentName}, the after-hours AI dispatcher. What's going on?`
     : held
-      ? `Thanks${job.customer_name ? `, ${job.customer_name}` : ""}. Your ${fee} hold is placed with PayPal, and nothing is charged. One moment while I send the technician.`
-      : `Sorry${job.customer_name ? `, ${job.customer_name}` : ""}, that card didn't go through.${web ? " You can approve the hold with the PayPal button instead," : ""} or I can book the first morning visit. Which would you like?`;
+      ? `Thanks${job.customer_name ? `, ${job.customer_name}` : ""}. ${securedLine} ${resume.next ?? "One moment while I send the technician."}`
+      : `Sorry${job.customer_name ? `, ${job.customer_name}` : ""}, that card didn't go through. Want to try the keypad again, or should I book the first morning visit?`;
 
   const resumeContext = resume
     ? [
         {
           title: "Where this call is right now",
-          body: `You already spoke with this caller and took their details. Name: ${job.customer_name ?? "unknown"}. Address: ${job.service_address ?? "unknown"} ${job.zip ?? ""}. Problem: ${job.issue ?? "unknown"}. They just used the secure keypad for the service-call hold. Keypad result: ${resume.payResult ?? "unknown"}. ${held ? (phonesTech ? `The hold IS placed. Call dispatch_technician right away and do what its result says: it phones ${tech} to confirm.` : "The hold IS placed. Call dispatch_technician right away, then tell them who is coming and when.") : "The hold is NOT placed. Do not dispatch. Offer the PayPal button or the morning slot."} Do not ask for details you already have.`,
+          body: `You already spoke with this caller and took their details. Name: ${job.customer_name ?? "unknown"}. Address: ${job.service_address ?? "unknown"} ${job.zip ?? ""}. Problem: ${job.issue ?? "unknown"}. They just used the secure keypad ${cardOnFile ? "to save a card on file" : "for the service-call hold"}. Keypad result: ${resume.payResult ?? "unknown"}. ${
+            !held
+              ? `The ${cardOnFile ? "card is NOT saved" : "hold is NOT placed"}. Do not dispatch. Offer the keypad again or the first morning slot.`
+              : resume.next
+                ? `The ${cardOnFile ? "card IS saved" : "hold IS placed"} and the system already dispatched the technician. You just told the caller: ${resume.next} Do not call dispatch_technician. ${phonesTech ? `While ${tech} is being called, stay with them and give one practical tip. Only say ${tech} confirmed when a notice says so.` : "Ask if there's anything else."}`
+                : phonesTech
+                  ? `The ${cardOnFile ? "card IS saved" : "hold IS placed"}. Call dispatch_technician right away and do what its result says: it phones ${tech} to confirm.`
+                  : `The ${cardOnFile ? "card IS saved" : "hold IS placed"}. Call dispatch_technician right away, then tell them who is coming and when.`
+          } Do not ask for details you already have.`,
         },
       ]
     : [];
@@ -129,11 +150,11 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                   bullets: [
                     "Safety first. If water is still running, walk them to the shutoff: the valve on the cold pipe above the water heater, or the main shutoff where the water line enters the house. If water is near outlets or the electrical panel, tell them to stay out of the water. If they smell gas, tell them to leave the house now and call 911 and the gas company, and do not dispatch.",
                     "Collect the details one question at a time, in this order, skipping anything they already said: what's going on (if not clear yet), their first name, the street address with ZIP code, then the best callback number. Once you have them, call save_job_details.",
-                    "If save_job_details says the address is outside the service area, apologize, explain you can't send anyone there, and suggest a local plumber. Do not offer a hold. Never invent a reason a place isn't covered; if the caller says it should be, take a callback number and say the owner will review it in the morning.",
+                    "If save_job_details says the address is outside the service area, apologize, explain you can't send anyone there, and suggest a local plumber. Do not ask for a card or a hold. Never invent a reason a place isn't covered; if the caller says it should be, take a callback number and say the owner will review it in the morning.",
                     `When save_job_details confirms the address, first tell them when ${tech} can be there, using the arrival time it gives you, and ask if that works. Then stop and wait for their answer.`,
                     cardOnFile
-                      ? `Once they're okay with the time, explain how it works: to send someone tonight, they keep a card on file with PayPal. Nothing is charged tonight. The technician goes over the price on site, and the final bill, including the ${fee} after-hours service call, goes on that card only once they agree. Cancelling is free until the technician heads out. Ask if that works.`
-                      : `Once they're okay with the time, explain the after-hours service call: it is ${fee}, and it goes toward the repair. To send someone tonight you place a hold for it now. Nothing is charged until the work is done, and if they cancel before the technician heads out the hold is simply released.`,
+                      ? `Once they're okay with the time, ask for a card on file in at most three short sentences, like: ${cardAsk} Then stop and wait for their answer.`
+                      : `Once they're okay with the time, explain the hold in at most two short sentences, like: ${holdAsk} Then stop and wait for their answer.`,
                     ...paymentStep,
                     "While you wait, stay with them and give one practical tip, like moving valuables off the floor or putting a bucket under the drip.",
                     phonesTech
@@ -151,6 +172,7 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
                       : "Never ask for, repeat or accept card numbers spoken out loud. If the caller starts reading a card number, stop them politely and use take_card_on_keypad, which keeps the card away from you.",
                     "If you ever receive card or keypad digits as text, never repeat or use them.",
                     "Never quote repair prices. The technician quotes on site before any work starts.",
+                    ...(cardOnFile ? [`If they ask what it costs: the after-hours service call is ${fee} and goes toward the repair. The technician quotes the rest on site.`] : []),
                     cardOnFile
                       ? `If the caller cancels after the technician is on the way, a ${tripFee} trip fee is charged to the card on file. Use cancel_visit if they want to cancel.`
                       : `If the caller cancels after the technician is on the way, a ${tripFee} trip fee applies and the rest of the hold is released. Use cancel_visit if they want to cancel.`,
@@ -300,14 +322,14 @@ export function keypadSwml(job: Job, b: Business, origin: string, secret: string
               currency: "usd",
               language: "en-US",
               voice: "woman",
-              description: `${shortName(b)} service call hold`,
+              description: job.secure_with === "card" ? `${shortName(b)} card on file` : `${shortName(b)} service call hold`,
               valid_card_types: "visa mastercard amex discover",
               prompts: [
                 { for: "payment-card-number", actions: [{ type: "Say", phrase: "Please type your card number on the keypad, then press pound." }] },
                 { for: "expiration-date", actions: [{ type: "Say", phrase: "Now the expiration date. Two digits for the month, two for the year, then pound." }] },
                 { for: "security-code", actions: [{ type: "Say", phrase: "Now the security code on the back, then pound." }] },
                 { for: "postal-code", actions: [{ type: "Say", phrase: "Last one. Your billing ZIP code, then pound." }] },
-                { for: "payment-processing", actions: [{ type: "Say", phrase: "Thanks. Placing the hold with PayPal now." }] },
+                { for: "payment-processing", actions: [{ type: "Say", phrase: job.secure_with === "card" ? "Thanks. Saving your card with PayPal now." : "Thanks. Placing the hold with PayPal now." }] },
               ],
             },
           },

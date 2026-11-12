@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { buildSwml, keypadSwml } from "@/lib/agent";
 import { createJob, getJob, updateJob, event, type Job } from "@/lib/db";
+import { dispatchTechnician } from "@/lib/money";
+import { arrivingIn, startTechCall } from "@/lib/tech-call";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
 import { getBusiness, workspaceForCaller } from "@/lib/settings";
 import { DEMO_WS } from "@/lib/workspace-id";
@@ -44,8 +46,26 @@ export async function POST(req: Request) {
     if (job) {
       const raw = params.get("pay_result");
       const payResult = body.vars?.pay_result ?? (raw && !raw.includes("$") ? raw : null);
-      const back = await updateJob(job.id, { pay_step: null }, event("agent", `Back from the secure keypad (${payResult ?? "no result"})`));
-      return NextResponse.json(buildSwml(back, await getBusiness(back.business_id), originOf(req), env.webhookSecret, { payResult }));
+      let back = await updateJob(job.id, { pay_step: null }, event("agent", `Back from the secure keypad (${payResult ?? "no result"})`));
+      const b = await getBusiness(back.business_id);
+      // Secured on the keypad: dispatch right here rather than trusting the fresh AI session to call
+      // dispatch_technician (it once kept saying "one moment" instead). The greeting says what happened.
+      let next: string | null = null;
+      if (back.status === "hold_placed" || back.status === "card_saved") {
+        try {
+          back = await dispatchTechnician(back, b);
+          const call = await startTechCall(back, b, originOf(req), env.webhookSecret);
+          const tech = back.tech_name ?? b.technician;
+          if (call.kind === "calling" || call.kind === "already") next = `I'm calling ${tech} now to confirm. Please stay on the line.`;
+          else if (call.kind === "failed") {
+            back = call.job;
+            next = `I couldn't reach ${tech}, so the owner will call you back shortly to get someone out.`;
+          } else next = `${tech} is on the way and can be there ${arrivingIn(back.eta ?? b.eta)}.`;
+        } catch (e) {
+          console.error("[swml] dispatch after keypad", e instanceof Error ? e.message : e);
+        }
+      }
+      return NextResponse.json(buildSwml(back, b, originOf(req), env.webhookSecret, { payResult, next }));
     }
   }
 

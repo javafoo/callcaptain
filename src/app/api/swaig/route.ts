@@ -129,11 +129,15 @@ export async function POST(req: Request) {
         // (SignalWire drops a browser call on that hand-off); if an old session asks, show the card form.
         if (job.channel !== "web") {
           if (job.status === "out_of_area") return outOfArea();
-          if (SECURED.has(job.status)) return reply("The hold is already placed. Dispatch the technician if you have not.");
+          const onFile = job.secure_with === "card";
+          if (SECURED.has(job.status)) return reply(`The ${onFile ? "card is already saved" : "hold is already placed"}. Dispatch the technician if you have not.`);
           job = await updateJob(
             job.id,
-            { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
-            event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."),
+            { status: onFile ? "awaiting_card" : "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
+            event(
+              onFile ? "card_requested" : "hold_requested",
+              `Agent handed the caller to the secure keypad${onFile ? " to save a card on file, $0" : ""}. The AI can't hear the digits.`,
+            ),
           );
           // `stop` ends this AI session; the call's SWML then continues to the keypad (/api/swml?after_ai=1).
           return reply("Handing the caller to the secure keypad now.", [{ stop: true }]);

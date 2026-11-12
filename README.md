@@ -1,6 +1,6 @@
 # Call Captain
 
-**The AI after-hours dispatcher for plumbing and HVAC companies. Ava answers the 2 AM emergency, keeps the caller safe, secures the visit with a PayPal hold before the truck rolls, phones the on-call technician, and the customer approves the final bill on their own phone.**
+**The AI after-hours dispatcher for plumbing and HVAC companies. Ava answers the 2 AM emergency, keeps the caller safe, gets a card on file with PayPal before the truck rolls ($0 tonight), phones the on-call technician, and the customer approves the final bill on their own phone before it's charged.**
 
 - **Live app:** https://callcaptain.vercel.app (no sign-up; you get your own workspace)
 - **Call the after-hours line from any phone:** (276) 331-0388
@@ -21,20 +21,20 @@ Everything below runs on PayPal's sandbox. Logins:
 **1. Call the line from your browser** (Chrome on a laptop, headphones help)
 1. Open https://callcaptain.vercel.app and click **Try a call with Ava**. Allow the microphone.
 2. Say *"My water heater just burst."* Give any name and a San Jose address with ZIP **95125**.
-3. Ava tells you how soon Marcus can be there, then explains the $149 after-hours hold. Say yes.
-4. Approve the hold in the PayPal box that appears (PayPal sandbox buyer, Venmo, or **Debit or Credit Card** with the test card). Ava confirms on her own and dispatches Marcus.
+3. Ava tells you how soon Marcus can be there, then asks to keep a card on file: nothing is charged tonight, and it's free to cancel until the technician heads out. Say yes.
+4. Save it in the PayPal form that appears: the PayPal sandbox buyer, Venmo, or the test card typed into the card fields. $0 is charged. Ava confirms on her own, and Marcus is dispatched.
 
 **2. No microphone?** Open **Jobs** and click **Load a sample night**: seven fictional calls from last night, each run through real PayPal sandbox holds, captures, a trip fee, a balance due and a refund. Explore the Jobs grid, the **Payments** ledger and the AI's overnight briefing.
 
 **3. Finish a job and get paid**
 1. In **Jobs**, open a dispatched job (yours from step 1, or Sam Patel from the sample night).
 2. Enter the final bill, e.g. **1840**, and click **Get customer approval**.
-3. Open the customer's link (or scan the QR code with your phone). It shows the bill, applies the $149 hold, and offers the $1,691 balance with PayPal, Venmo, card or **Pay Later**. Pay with the sandbox buyer. The job flips to *Paid in full* and the receipt is itemized.
-4. Try **Refund**, or on another job, **Customer cancelled** (after dispatch only the $79 trip fee is kept).
+3. Open the customer's link (or scan the QR code with your phone). It shows the bill; once the customer approves, the $1,840 goes on the saved card. On a job secured with a hold instead (like Sam Patel), the $149 hold is applied and the $1,691 balance is paid with PayPal, Venmo, card or **Pay Later**. The job flips to *Paid in full* and the receipt is itemized.
+4. Try **Refund**, or on another job, **Customer cancelled** (free until the technician heads out; after that only the $79 trip fee is charged).
 
 **4. Optional: the real phone line, dispatch by phone, alerts**
-- **Real phone line:** call **(276) 331-0388** from any phone. To see the call in your own Jobs, first add your number under **Go live → Test from your phone**. On a phone call Ava hands you to a secure keypad for the card (`4111111111111111#`, `1229#`, `123#`, `95131#`); the AI never hears it.
-- **Ava phones the technician:** put your own cell in **Agent setup → Technician's cell**, then make a call. After the hold, your phone rings: Ava briefs "Marcus" on the job; say *"Yes, I'm 20 minutes out"* and the caller hears *"Marcus just confirmed"* live.
+- **Real phone line:** call **(276) 331-0388** from any phone. To see the call in your own Jobs, first add your number under **Go live → Test from your phone**. On a phone call Ava hands you to a secure keypad for the card (`4111111111111111#`, `1229#`, `123#`, `95131#`), and it's saved to PayPal Vault; the AI never hears it.
+- **Ava phones the technician:** put your own cell in **Agent setup → Technician's cell**, then make a call. Once the card is saved, your phone rings: Ava briefs "Marcus" on the job; say *"Yes, I'm 20 minutes out"* and the caller hears *"Marcus just confirmed"* live.
 - **Alerts on your phone:** **Go live** → scan the QR code → add Call Captain to your Home Screen → turn on alerts → **Send a test alert**.
 - **Set up from a website:** **Agent setup → Read my website**, try our demo contractor site (`/site`). Map a service area in plain words ("Northern Virginia and DC").
 
@@ -60,19 +60,19 @@ When someone does answer, the owner faces a bad choice: roll a truck at 2 AM to 
 1. **Safety first.** Ava walks the caller to the water shutoff and keeps them away from water near outlets. A gas smell means leave the house and call 911, and no dispatch.
 2. **Triage and service area.** Name, address and ZIP, the problem, a callback number. The ZIP is checked against the owner's service area (counties) in code.
 3. **An arrival time first.** "Marcus can be there in 20 to 30 minutes. Does that work?", estimated from the technician's starting ZIP to the caller's.
-4. **Secured with PayPal while they're still on the line.** A PayPal **hold** for the after-hours service call appears on the caller's screen (PayPal, Venmo or a card). $0 moves. Or the owner chooses **card on file** (PayPal Vault, $0 tonight). On a real phone call the caller types the card on the keypad and PayPal holds it. **The AI never hears or sees a card number.**
-5. **Live confirmation.** The moment PayPal approves, the server injects a notice into the live conversation and Ava says "You're all set" on her own.
+4. **Secured with PayPal while they're still on the line.** "Can we get a card on file?" Nothing is charged tonight; it's free to cancel until the technician heads out, and after that only the $79 trip fee, which goes toward the bill. A secure PayPal form on the caller's screen saves PayPal, Venmo or a card with **PayPal Vault, $0**. On a real phone call the caller types the card on the keypad and the server saves it to PayPal Vault. **The AI never hears or sees a card number.** Owners who want money reserved can switch to a $149 PayPal **hold** for the service call instead (authorized now, captured after the job).
+5. **Live confirmation.** The moment PayPal confirms, the server injects a notice into the live conversation and Ava says "You're all set" on her own.
 6. **Dispatch by phone.** Ava phones the on-call technician with a short brief; he accepts by voice and the caller hears "Marcus just confirmed" live. If he can't make it, the visit goes back to secured (no trip fee) and the owner is alerted.
 
 **On site (technician and customer)**
 - The tech's phone shows the job: address with directions, the AI's ticket, tap-to-call.
-- He enters the final bill; **the customer approves it on their own screen** (QR code or the tech's phone). PayPal captures it from the hold and releases the rest, or applies the hold and takes the balance with PayPal, Venmo or Pay Later, or charges the card on file. The approval (amount, time, device) is recorded.
-- Fair cancellations: before dispatch the hold is released; after the truck rolls only the trip fee is kept.
+- He enters the final bill; **the customer approves it on their own screen** (QR code or the tech's phone), and only then is the card on file charged (a merchant-initiated PayPal charge). With a hold, PayPal captures the bill from it and releases the rest, or applies the hold and takes the balance with PayPal, Venmo or Pay Later. The approval (amount, time, device) is recorded.
+- Fair cancellations: free until the technician heads out; after that only the trip fee is charged (to the card on file, or captured from the hold).
 
 **For the owner**
 - **Jobs** (AG Grid): live tabs (needs action, on a call, follow up, paid), flashing status and money cells during calls, totals, CSV export, an **AI overnight briefing** with who to call back.
 - **Payments** (AG Grid): every PayPal movement (holds, captures, releases, cards saved or charged, balances, refunds) with PayPal ids, filters and a bookkeeper export. One-click refunds.
-- **Alerts on your phone:** installable app with push notifications (new emergency, hold placed, tech accepted, paid, needs a callback). No texting registration needed.
+- **Alerts on your phone:** installable app with push notifications (new emergency, card saved or hold placed, tech accepted, paid, needs a callback). No texting registration needed.
 - **Setup in minutes:** paste your website and the AI fills in services, service area, fees, policies and FAQs; describe your area in plain words and it's mapped to counties; pick a voice and languages (English, Spanish, French, Portuguese, German, Hindi; Ava switches mid-call).
 - **Go live:** forward your after-hours line to the agent's number, and add a "Talk to us now" button to your website with one line of code.
 
@@ -80,13 +80,14 @@ When someone does answer, the owner faces a bad choice: roll a truck at 2 AM to 
 
 | Moment | PayPal | Code |
 |---|---|---|
-| Hold for the service call (browser) | Orders v2 `intent: AUTHORIZE` → JS SDK **v6** buttons (PayPal, Venmo, guest card) → `/v2/checkout/orders/{id}/authorize` | `createHoldOrder`, `authorizeOrder` in `src/lib/paypal.ts`; `src/components/paypal-hold.tsx` |
-| Hold by phone keypad | Orders v2 AUTHORIZE with `payment_source.card`, fed by SignalWire's secure `pay` collector | `src/app/api/pay/connector/route.ts`, `authorizeCard` |
-| Card on file, $0 | Vault v3 setup token → JS SDK v6 `PayPalSavePaymentButton` or **Card Fields** → payment token | `createSetupToken`, `createPaymentToken`; `src/components/card-on-file.tsx` |
-| Final bill within the hold | `/v2/payments/authorizations/{id}/capture` (partial capture releases the rest) | `approveFinalBill`, `chargeFromHold` in `src/lib/money.ts` |
-| Bill above the hold | Capture the hold + Orders v2 `intent: CAPTURE` for the balance with **Pay Later** | `createBalanceOrder`, `confirmBalancePaid`; `/pay/[id]` |
+| Card on file, $0 (default, browser) | Vault v3 setup token → JS SDK **v6** `PayPalSavePaymentButton` (PayPal, Venmo) or **Card Fields** → payment token | `createSetupToken`, `createPaymentToken`; `src/components/card-on-file.tsx` |
+| Card on file by phone keypad | Vault v3 setup token with the card from SignalWire's secure `pay` collector → payment token | `src/app/api/pay/connector/route.ts`, `src/lib/money.ts` |
+| Hold for the service call (owner option, browser) | Orders v2 `intent: AUTHORIZE` → JS SDK v6 buttons (PayPal, Venmo, guest card) → `/v2/checkout/orders/{id}/authorize` | `createHoldOrder`, `authorizeOrder` in `src/lib/paypal.ts`; `src/components/paypal-hold.tsx` |
+| Hold by phone keypad (owner option) | Orders v2 AUTHORIZE with `payment_source.card`, fed by SignalWire's secure `pay` collector | `src/app/api/pay/connector/route.ts`, `authorizeCard` |
+| Final bill within the hold (hold mode) | `/v2/payments/authorizations/{id}/capture` (partial capture releases the rest) | `approveFinalBill`, `chargeFromHold` in `src/lib/money.ts` |
+| Bill above the hold (hold mode) | Capture the hold + Orders v2 `intent: CAPTURE` for the balance with **Pay Later** | `createBalanceOrder`, `confirmBalancePaid`; `/pay/[id]` |
 | Charge the card on file after approval | Orders v2 CAPTURE with `payment_source.card.vault_id` and `stored_credential` (merchant-initiated) | `chargeSaved` |
-| Cancellations | `void` before dispatch; partial capture of the trip fee after | `releaseHold`, `cancelVisit` |
+| Cancellations | Card on file: the trip fee is charged to the saved card after dispatch. Hold: `void` before dispatch, partial capture of the trip fee after | `cancelVisit`, `chargeSaved`, `releaseHold` |
 | Refunds | `/v2/payments/captures/{id}/refund` (full or partial, across captures) | `refundJob`, `refundCapture` |
 | Reconciliation | Webhooks verified with `/v1/notifications/verify-webhook-signature`: order approved (recovers a hold or balance when the browser closed), authorization voided, capture completed, refunded, reversed, denied, vault token created or deleted | `src/app/api/paypal/webhook/route.ts`, `src/lib/paypal-webhooks.ts` |
 
@@ -95,7 +96,7 @@ Every PayPal write sends a `PayPal-Request-Id`, and every money movement lands o
 ## How AI is used
 
 - **The voice agent** (SignalWire AI, `gpt-4.1-mini`, Cartesia voices, multilingual) runs the call from the SWML in `src/lib/agent.ts`. Its tools (`src/app/api/swaig/route.ts`) are the only way it can touch money or dispatch: `save_job_details`, `start_paypal_hold`, `save_card_on_file`, `take_card_on_keypad`, `check_hold`, `dispatch_technician`, `check_technician`, `book_morning_slot`, `cancel_visit`.
-- **Agentic commerce with guardrails.** Business rules live in code, not in the prompt: the server refuses to dispatch until PayPal confirms, refuses holds outside the service area, never accepts spoken card numbers, and a human (the customer) approves the final charge on their own screen.
+- **Agentic commerce with guardrails.** Business rules live in code, not in the prompt: the server refuses to dispatch until PayPal confirms the card or hold, refuses to secure visits outside the service area, never accepts spoken card numbers, and a human (the customer) approves the final charge on their own screen.
 - **A second agent phones the technician** (`src/lib/tech-call.ts`): it briefs him and records `accept_job` / `decline_job`, then notifies the caller's live session.
 - **After each call** the AI writes a structured ticket for the technician (summary, urgency, safety steps, likely work, mood).
 - **Setup and briefing** (AI SDK + Vercel AI Gateway, `src/lib/ai.ts`, `src/lib/briefing.ts`): website → settings and call knowledge; plain-words service area → Census counties; the overnight briefing, whose numbers are computed in code so the AI can't invent an amount.
@@ -104,11 +105,11 @@ Every PayPal write sends a `PayPal-Request-Id`, and every money movement lands o
 
 ```
 Caller (browser, website widget, or phone) ─▶ SignalWire AI agent (SWML from /api/swml)
-   │                                            │  tools ─▶ /api/swaig ─▶ PayPal Orders v2 (AUTHORIZE) · Vault v3
-   │  PayPal JS SDK v6 on the caller's screen   │  keypad ─▶ /api/pay/connector ─▶ PayPal (card hold)
-   └─ approve ─▶ /api/jobs/:id/hold ─▶ PayPal ─▶ calling.ai_message ─▶ Ava says "you're all set"
+   │                                            │  tools ─▶ /api/swaig ─▶ PayPal Vault v3 · Orders v2 (AUTHORIZE)
+   │  PayPal JS SDK v6 on the caller's screen   │  keypad ─▶ /api/pay/connector ─▶ PayPal (card on file, or hold)
+   └─ save / approve ─▶ /api/jobs/:id/vault · /hold ─▶ PayPal ─▶ calling.ai_message ─▶ Ava says "you're all set"
 Dispatch ─▶ SignalWire outbound call ─▶ tech agent (/api/swml/tech, /api/swaig/tech) ─▶ caller hears "Marcus confirmed"
-On site ─▶ /jobs/:id (tech) ─▶ /pay/:id (customer approves) ─▶ PayPal capture · balance (Pay Later) · vaulted charge
+On site ─▶ /jobs/:id (tech) ─▶ /pay/:id (customer approves) ─▶ vaulted charge · or capture + balance (Pay Later)
 PayPal webhooks ─▶ /api/paypal/webhook (verified) ─▶ reconcile job + ledger
 Owner ─▶ Jobs + Payments (AG Grid) · alerts (Web Push) · Agent setup (AI) · Go live
 Postgres (Neon): jobs, payments ledger, businesses (one per workspace), push subscriptions, PayPal event log
