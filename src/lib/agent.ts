@@ -259,23 +259,25 @@ export function buildSwml(job: Job, b: Business, origin: string, secret: string,
             },
           },
         },
+        // Phone calls: take_card_on_keypad stops the AI session, and the call continues here to the secure keypad.
+        ...(web ? [] : [{ transfer: { dest: afterAiUrl(origin, secret, job.id) } }]),
       ],
     },
   };
 }
 
 /**
- * SWML `pay` hand-off. Run inline inside the AI session, SignalWire accepted the action but
- * never started `pay`, so the AI kept hearing the keypad. Instead we hand the call off
- * (`transfer: true` ends the AI session, so nothing is listening), collect the card with
- * `pay`, then `transfer` back to /api/swml?resume=1, which starts a fresh AI session that
- * knows the job and the result.
+ * The secure keypad: SWML `pay` collects the card (the AI isn't running, so nothing hears the
+ * digits), then `transfer` back to /api/swml?resume=1 starts a fresh AI session that knows the job
+ * and the result. How the call gets here: take_card_on_keypad answers with the SWAIG `stop` action,
+ * the AI session ends, and the phone call's SWML continues to its after-AI step
+ * (/api/swml?after_ai=1), which serves this document while the job is waiting for the keypad.
+ * Handing `pay` over inside a SWAIG `SWML` action instead fails on SignalWire: inline it never
+ * starts, and with `transfer: true` the call drops (relay_script_internal_error).
  */
-export function keypadPayAction(job: Job, b: Business, origin: string, secret: string) {
+export function keypadSwml(job: Job, b: Business, origin: string, secret: string) {
   const resumeUrl = `${hook(origin, "/api/swml", secret, job.id)}&resume=1&pay_result=\${pay_result}`;
   return {
-    transfer: true,
-    SWML: {
       version: "1.0.0",
       sections: {
         main: [
@@ -312,6 +314,10 @@ export function keypadPayAction(job: Job, b: Business, origin: string, secret: s
           { transfer: { dest: resumeUrl } },
         ],
       },
-    },
   };
+}
+
+/** Phone calls: where the SWML goes when the AI session ends (the keypad hand-off, or nothing). */
+export function afterAiUrl(origin: string, secret: string, jobId: string) {
+  return `${hook(origin, "/api/swml", secret, jobId)}&after_ai=1`;
 }

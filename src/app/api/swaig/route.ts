@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { keypadPayAction } from "@/lib/agent";
 import { checkArea } from "@/lib/area";
 import { zipFrom, type Business } from "@/lib/business";
 import { dollars, event, findJobByCall, getJob, updateJob, type Job } from "@/lib/db";
@@ -136,7 +135,8 @@ export async function POST(req: Request) {
             { status: "awaiting_hold", hold_method: "keypad", pay_step: "starting" },
             event("hold_requested", "Agent handed the caller to the secure keypad. The AI can't hear the digits."),
           );
-          return reply("Handing the caller to the secure keypad now.", [keypadPayAction(job, b, originOf(req), env.webhookSecret)]);
+          // `stop` ends this AI session; the call's SWML then continues to the keypad (/api/swml?after_ai=1).
+          return reply("Handing the caller to the secure keypad now.", [{ stop: true }]);
         }
       // falls through
       case "save_card_on_file": {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildSwml } from "@/lib/agent";
+import { buildSwml, keypadSwml } from "@/lib/agent";
 import { createJob, getJob, updateJob, event, type Job } from "@/lib/db";
 import { env, hasWebhookKey, originOf } from "@/lib/env";
 import { getBusiness, workspaceForCaller } from "@/lib/settings";
@@ -27,6 +27,16 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { call?: { call_id?: string; from?: string }; vars?: { pay_result?: string } };
   const callId = body.call?.call_id ?? null;
   const params = new URL(req.url).searchParams;
+
+  // Phone calls continue here when the AI session ends: take_card_on_keypad stopped it to open the
+  // secure keypad (the job is waiting for it), or the conversation is over.
+  if (params.get("after_ai") === "1") {
+    const job = await getJob(params.get("job") ?? "");
+    if (job && job.channel !== "web" && job.pay_step === "starting") {
+      return NextResponse.json(keypadSwml(job, await getBusiness(job.business_id), originOf(req), env.webhookSecret));
+    }
+    return NextResponse.json({ version: "1.0.0", sections: { main: [{ hangup: {} }] } });
+  }
 
   // Back from the secure keypad hand-off: same call, same job, a fresh AI session.
   if (params.get("resume") === "1") {
