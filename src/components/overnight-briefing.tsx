@@ -60,7 +60,7 @@ export function OvernightBriefing({ changeKey }: { changeKey: string }) {
             ))}
           </ul>
           <p className="mt-3 text-xs text-gray-400">
-            {f.calls} {f.calls === 1 ? "call" : "calls"} · {f.secured} secured with PayPal · {dollars(f.heldNow)} held · {dollars(f.collected)} collected
+            {f.calls} {f.calls === 1 ? "call" : "calls"} · {f.secured} secured with PayPal{f.heldNow > 0 ? ` · ${dollars(f.heldNow)} held` : ""} · {dollars(f.collected)} collected
           </p>
         </div>
         {briefing.callbacks.length > 0 && (

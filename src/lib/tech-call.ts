@@ -390,7 +390,13 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
   const voice = voiceString(b.voiceId);
   const say = (text: string) => ({ play: { url: `say:${text}`, say_voice: voice } });
   const voicemail = `Hi ${tech}, it's ${b.agentName}, the after-hours dispatcher for ${company}, with an emergency job. Please call the office. Goodbye.`;
-  const greeting = `Hi ${tech}, it's ${b.agentName} from ${company}. I've got an emergency job for you.`;
+  // The whole brief is the fixed greeting, ending in a question, so the technician knows it's their turn to talk.
+  const greeting = [
+    `Hi ${tech}, it's ${b.agentName} from ${company} with an emergency job.`,
+    `${job.customer_name ?? "A customer"}${job.service_address ? ` at ${job.service_address}` : ""}: ${(job.issue ?? "an emergency").replace(/[.\s]+$/, "")}.`,
+    onFile(job) ? "Their card is on file with PayPal." : `A ${dollars(job.fee_cents)} PayPal hold is in place.`,
+    `They were told ${job.eta ?? b.eta}. Can you take it?`,
+  ].join(" ");
 
   if (!SECURED.includes(job.status)) {
     return {
@@ -413,7 +419,7 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
       static_greeting: greeting,
       static_greeting_no_barge: true,
       end_of_speech_timeout: 800,
-      attention_timeout: 10000,
+      attention_timeout: 20000,
       outbound_attention_timeout: 30000,
       inactivity_timeout: 60000,
       hard_stop_time: "3m",
@@ -437,7 +443,7 @@ export function buildTechSwml(job: Job, b: Business, origin: string, secret: str
           title: "How this call goes",
           numbered: true,
           bullets: [
-            `You already opened the call with: ${greeting} As soon as ${tech} answers, whatever they say, brief ${tech} in two or three short sentences: the customer's first name, the street address and ZIP code, the problem and how urgent it is, any safety steps already taken, and how the visit is secured with PayPal. Mention the arrival time the customer was told. End with: Can you take it?`,
+            `You already opened the call with the whole brief: ${greeting} Now wait for ${tech}'s answer. If ${tech} only says hello, sounds unsure or asks you to repeat, repeat the brief in two short sentences and ask again: Can you take it?`,
             `If ${tech} says yes, call accept_job right away. If ${tech} says how long it will take, like forty minutes, pass eta_minutes. Don't ask for a time if none is offered.`,
             `If ${tech} says no or can't make it, say no problem and call decline_job, with the reason if one was given.`,
             `If ${tech} asks a question, answer in one short sentence from the job details only, then ask again if they can take it. If you don't know, say the office will follow up.`,

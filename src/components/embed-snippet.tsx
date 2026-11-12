@@ -17,7 +17,7 @@ export function EmbedSnippet({ workspace }: { workspace: string | null }) {
     <Card>
       <CardHeader
         title="Add the call button to your website"
-        subtitle="Paste this one line before </body>. Visitors tap “Talk to us now”, talk to your agent and approve the PayPal hold, right on your site."
+        subtitle="Paste this one line before </body>. Visitors tap “Talk to us now”, talk to your agent and save a card with PayPal, right on your site."
         action={
           <a href="/site" target="_blank" className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-brand-700 hover:text-brand-600">
             See it on a site <Icon name="external" className="h-3.5 w-3.5" />
