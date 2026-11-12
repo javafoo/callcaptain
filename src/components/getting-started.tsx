@@ -45,7 +45,7 @@ export function GettingStarted({ jobs }: { jobs: Job[] }) {
     },
     {
       title: "Call your line",
-      body: "Play a homeowner with a burst pipe and approve the PayPal hold.",
+      body: "Play a homeowner with a burst pipe and save a card with PayPal.",
       href: "/call",
       cta: "Test call",
       done: real.length > 0,

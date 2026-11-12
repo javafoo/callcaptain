@@ -1,7 +1,7 @@
 import { TIMEZONE, type Business } from "./business";
 import { client, createJob, event, getJob, listJobs, updateJob, type Job } from "./db";
 import { listPayments } from "./ledger";
-import { approveFinalBill, bookMorning, cancelVisit, dispatchTechnician, holdKeypadCard, refundJob, releaseHold, requestApproval } from "./money";
+import { approveFinalBill, bookMorning, cancelVisit, dispatchTechnician, holdKeypadCard, refundJob, releaseHold, requestApproval, saveKeypadCard } from "./money";
 
 /**
  * "Load a sample night": seven after-hours calls from last night, each run through the real
@@ -179,6 +179,8 @@ const OFFSET_MINUTES: Record<string, number> = {
   out_of_area: 1,
   hold_requested: 3,
   hold_placed: 4,
+  card_requested: 3,
+  card_saved: 4,
   scheduled: 4,
   dispatched: 5,
   call_ended: 7,
@@ -191,7 +193,7 @@ const OFFSET_MINUTES: Record<string, number> = {
   approved: 151,
   refunded: 610,
 };
-const LEDGER_OFFSET_MINUTES: Record<string, number> = { hold: 4, trip_fee: 31, hold_void: 31, refund: 610 };
+const LEDGER_OFFSET_MINUTES: Record<string, number> = { hold: 4, card_saved: 4, trip_fee: 31, hold_void: 31, refund: 610 };
 
 /** The most recent past moment when the business's clock read hh:mm. */
 function lastNight(hhmm: string, now = Date.now()): number {
@@ -228,7 +230,8 @@ async function backdate(job: Job, start: number): Promise<void> {
 }
 
 async function run(workspace: string, b: Business, s: Sample): Promise<void> {
-  let job = await createJob(workspace, "phone", b.serviceCallCents, null, "hold");
+  // The night follows the owner's setting: card on file (the default) or the service-call hold.
+  let job = await createJob(workspace, "phone", b.serviceCallCents, null, b.secureWith);
   job = await updateJob(
     job.id,
     {
@@ -248,7 +251,7 @@ async function run(workspace: string, b: Business, s: Sample): Promise<void> {
   } else if (s.outcome === "scheduled") {
     job = await bookMorning(job, b);
   } else {
-    job = (await holdKeypadCard(job, b, TEST_CARD)).job;
+    job = b.secureWith === "card" ? (await saveKeypadCard(job, TEST_CARD)).job : (await holdKeypadCard(job, b, TEST_CARD)).job;
     job = await dispatchTechnician(job, b);
     if (s.outcome === "cancelled_fee") job = (await cancelVisit(job, b)).job;
     if ((s.outcome === "completed" || s.outcome === "balance_due") && s.finalCents) {
