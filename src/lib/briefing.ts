@@ -42,7 +42,7 @@ const MEANING: Record<string, string> = {
   awaiting_card: "was asked to save a card",
   hold_placed: "PayPal hold placed, technician not sent yet",
   card_saved: "card saved with PayPal, technician not sent yet",
-  dispatched: "PayPal hold placed and technician on the way",
+  dispatched: "secured with PayPal (card on file or hold) and technician on the way",
   scheduled: "declined a night visit; booked for the morning",
   awaiting_approval: "work done; customer approving the final bill",
   completed: "work done and paid from the hold",
@@ -106,7 +106,7 @@ export async function overnightBriefing(jobs: Job[], b: Business): Promise<Brief
     model: MODEL,
     reasoning: "low",
     output: Output.object({ schema }),
-    system: `You write the morning briefing for the owner of ${b.businessName}, a small home-repair company. Their AI dispatcher ${b.agentName} answered the after-hours line overnight. Use only the facts and numbers given; never invent amounts, names or events. Plain, warm, brief sentences. Say "held" for PayPal holds (nothing charged yet) and "collected" for money captured.`,
+    system: `You write the morning briefing for the owner of ${b.businessName}, a small home-repair company. Their AI dispatcher ${b.agentName} answered the after-hours line overnight. Use only the facts and numbers given; never invent amounts, names or events. Plain, warm, brief sentences. Say "card on file" for saved cards and "held" only for PayPal holds (nothing charged yet either way), and "collected" for money captured.`,
     prompt: `Numbers (already computed, use these exactly): ${JSON.stringify({
       calls: facts.calls,
       visitsSecuredWithPayPal: facts.secured,
