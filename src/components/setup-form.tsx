@@ -162,7 +162,7 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
 
   return (
     <form
-      className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]"
+      className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]"
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
@@ -211,7 +211,7 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
 
         <Card>
           <CardHeader title="Your business" subtitle="What callers hear, and what you do." />
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
             <Field label="Business name">
               <input className={inputClass} value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
             </Field>
@@ -230,7 +230,7 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
 
             <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Voice</p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {VOICES.map((v) => {
                   const selected = form.voiceId === v.id;
                   return (
@@ -294,8 +294,8 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
 
         <Card>
           <CardHeader title="Pricing and payment" subtitle="How a night visit is secured before the technician drives out." />
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2" role="radiogroup" aria-label="How to secure the visit">
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:col-span-2 sm:grid-cols-2" role="radiogroup" aria-label="How to secure the visit">
               {(
                 [
                   ["card", "Card on file", "The caller saves a card or PayPal with PayPal. $0 tonight. You charge the final bill after they approve it on site."],
@@ -341,7 +341,7 @@ export function SetupForm({ initial, editable }: { initial: Business; editable: 
 
         <Card>
           <CardHeader title="Where and who" subtitle="The agent checks every caller's ZIP and won't dispatch outside your area." />
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
             <div className="space-y-3 sm:col-span-2">
               <Field label="Service area, in your own words" hint={`A region, cities, counties, or "within 25 miles of 22101". The AI turns it into counties; the agent checks each caller's ZIP.`}>
                 <div className="flex gap-2">

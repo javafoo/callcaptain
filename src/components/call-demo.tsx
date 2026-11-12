@@ -97,7 +97,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
   const compact = Boolean(keypadRequested && phase === "live");
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
       {/* The homeowner's phone */}
       <div className="flex flex-col items-center gap-4">
         <div className="relative flex h-[680px] w-full max-w-[360px] flex-col overflow-hidden rounded-[2.75rem] border-[10px] border-gray-900 bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 shadow-2xl">
@@ -194,7 +194,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
               <p className="mt-4 text-xl font-semibold text-gray-900">The job builds itself while you talk</p>
               <p className="mt-1 max-w-lg text-sm text-gray-500">You play the homeowner. {business.agentName} handles the call; this card fills in live, and the PayPal {card ? "form appears here when it's time to save a card on file" : "button appears here when it's time to hold the service call"}.</p>
             </div>
-            <ol className="grid gap-3 sm:grid-cols-3">
+            <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 ["Call and explain", `Tap the green button and say something like "my water heater burst." Give a name and a San Jose address, ZIP 95112.`],
                 card
@@ -249,7 +249,7 @@ export function CallDemo({ paypalClientId, liveCalls, business }: { paypalClient
               })}
             </ol>
 
-            <div className="grid gap-px bg-gray-100 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-px bg-gray-100 sm:grid-cols-2">
               {[
                 { icon: "pin" as const, label: "Service address", value: job.service_address ? `${job.service_address}${job.zip && !job.service_address.includes(job.zip) ? ` ${job.zip}` : ""}` : null },
                 { icon: "wrench" as const, label: "Problem", value: job.issue },

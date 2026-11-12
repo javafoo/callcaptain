@@ -45,7 +45,7 @@ export function OvernightBriefing({ changeKey }: { changeKey: string }) {
   const f = briefing.facts;
   return (
     <Card className="overflow-hidden">
-      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <div>
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
             <Icon name="sparkle" className="h-3.5 w-3.5" /> Overnight

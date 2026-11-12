@@ -40,7 +40,7 @@ function MoneyFlows({ fee, tripFee, agent }: { fee: string; tripFee: string; age
   return (
     <section className="mt-10">
       <h2 className="text-lg font-semibold text-gray-900">Every money moment runs through PayPal</h2>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {flows.map((f) => (
           <Card key={f.title} className="flex flex-col p-5">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">

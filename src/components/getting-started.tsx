@@ -90,7 +90,7 @@ export function GettingStarted({ jobs }: { jobs: Job[] }) {
           Hide
         </button>
       </div>
-      <ol className="grid gap-px bg-gray-100 sm:grid-cols-2 xl:grid-cols-4">
+      <ol className="grid grid-cols-1 gap-px bg-gray-100 sm:grid-cols-2 xl:grid-cols-4">
         {steps.map((s, i) => (
           <li key={s.title} className="flex flex-col gap-2 bg-white p-5">
             <span

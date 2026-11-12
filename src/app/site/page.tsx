@@ -48,7 +48,7 @@ export default function DemoSite() {
       <main className="mx-auto max-w-5xl space-y-14 px-6 py-14">
         <section id="services">
           <h2 className="text-2xl font-bold text-slate-900">Services</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {SERVICES.map(([t, d]) => (
               <div key={t} className="rounded-lg border border-slate-200 p-5">
                 <h3 className="font-semibold text-slate-900">{t}</h3>
